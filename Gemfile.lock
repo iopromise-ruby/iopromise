@@ -8,6 +8,19 @@ GEM
   remote: https://rubygems.org/
   specs:
     diff-lcs (1.4.4)
+    ethon (0.14.0)
+      ffi (>= 1.15.0)
+    faraday (1.4.1)
+      faraday-excon (~> 1.1)
+      faraday-net_http (~> 1.0)
+      faraday-net_http_persistent (~> 1.1)
+      multipart-post (>= 1.2, < 3)
+      ruby2_keywords (>= 0.0.4)
+    faraday-excon (1.1.0)
+    faraday-net_http (1.0.1)
+    faraday-net_http_persistent (1.1.0)
+    ffi (1.15.0)
+    multipart-post (2.1.1)
     promise.rb (0.7.4)
     rake (13.0.3)
     rspec (3.10.0)
@@ -23,14 +36,19 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.10.0)
     rspec-support (3.10.2)
+    ruby2_keywords (0.0.4)
+    typhoeus (1.4.0)
+      ethon (>= 0.9.0)
 
 PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  faraday
   iopromise!
   rake (~> 13.0)
   rspec (~> 3.0)
+  typhoeus
 
 BUNDLED WITH
    2.2.9
