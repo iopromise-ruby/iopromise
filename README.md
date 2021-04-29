@@ -1,6 +1,6 @@
 # iopromise
 
-This **experimental pre-release** gem extends promise.rb promises to support an extremely simple pattern for \"continuing\" execution of the promise in an asynchronous non-blocking way.
+This **experimental pre-release** gem extends promise.rb promises to support an extremely simple pattern for \"continuing\" execution of all pending promises in an asynchronous non-blocking way.
 
 ## Installation
 
