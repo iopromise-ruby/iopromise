@@ -8,7 +8,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
-      run: sudo apt-get install libcurl4-openssl-dev
+      run: sudo apt-get install libcurl4-openssl-dev libsasl2-dev
+    - uses: niden/actions-memcached@v7
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:

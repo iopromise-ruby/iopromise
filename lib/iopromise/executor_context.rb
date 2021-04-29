@@ -1,3 +1,6 @@
+# frozen_string_literal: true
+
+require 'set'
 
 module IOPromise
   class ExecutorContext
@@ -56,11 +59,12 @@ module IOPromise
     def wait_for_all_data(end_when_fulfilled: nil)
       loop do
         readers, writers, exceptions, wait_time = continue_to_read_pools
-        break if readers.empty? && writers.empty? && exceptions.empty?
 
         unless end_when_fulfilled.nil?
           return if end_when_fulfilled.fulfilled?
         end
+
+        break if readers.empty? && writers.empty? && exceptions.empty?
   
         # we could be clever and decide which ones to "continue" on next
         ready = IO.select(readers.keys, writers.keys, exceptions.keys, wait_time)
@@ -73,8 +77,12 @@ module IOPromise
         @pool_ready_exceptions = ready_exceptions.group_by { |i| exceptions[i] }
       end
   
-      @pools.each do |pool|
-        pool.sync
+      unless end_when_fulfilled.nil?
+        raise ::IOPromise::Error.new('Internal error: IO loop completed without fulfilling the desired promise')
+      else
+        @pools.each do |pool|
+          pool.sync
+        end
       end
     end
   end
