@@ -29,6 +29,19 @@ RSpec.describe IOPromise::Memcached do
     expect(p.value).to eq('bar')
   end
 
+  it "can be constructed by copying all details from a normal client" do
+    raw_client = ::Memcached::Client.new
+    client = IOPromise::Memcached.new(raw_client)
+
+    raw_client.set('foo', 'bar')
+    
+    p = client.get_as_promise('foo')
+    p.sync
+    expect(p).to_not be_pending
+    expect(p).to be_fulfilled
+    expect(p.value).to eq('bar')
+  end
+
   it "can retrieve multiple values from memcached concurrently" do
     raw_client = ::Memcached::Client.new
     client = IOPromise::Memcached.new

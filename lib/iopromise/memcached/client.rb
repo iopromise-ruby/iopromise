@@ -7,7 +7,11 @@ module IOPromise
   module Memcached
     class Client
       def initialize(*args, **kwargs)
-        @client = ::Memcached::Client.new(*args, **kwargs)
+        if args.first.is_a?(::Memcached::Client)
+          @client = args.first.clone
+        else
+          @client = ::Memcached::Client.new(*args, **kwargs)
+        end
       end
 
       def get_as_promise(key)
