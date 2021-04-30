@@ -19,7 +19,7 @@ module IOPromise
       end
     
       def wait
-        ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_fulfilled: self)
+        ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_complete: self)
       end
     
       def execute_pool

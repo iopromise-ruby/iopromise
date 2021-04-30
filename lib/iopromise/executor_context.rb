@@ -56,12 +56,12 @@ module IOPromise
       [readers, writers, exceptions, max_timeout]
     end
   
-    def wait_for_all_data(end_when_fulfilled: nil)
+    def wait_for_all_data(end_when_complete: nil)
       loop do
         readers, writers, exceptions, wait_time = continue_to_read_pools
 
-        unless end_when_fulfilled.nil?
-          return if end_when_fulfilled.fulfilled?
+        unless end_when_complete.nil?
+          return unless end_when_complete.pending?
         end
 
         break if readers.empty? && writers.empty? && exceptions.empty?
@@ -77,7 +77,7 @@ module IOPromise
         @pool_ready_exceptions = ready_exceptions.group_by { |i| exceptions[i] }
       end
   
-      unless end_when_fulfilled.nil?
+      unless end_when_complete.nil?
         raise ::IOPromise::Error.new('Internal error: IO loop completed without fulfilling the desired promise')
       else
         @pools.each do |pool|

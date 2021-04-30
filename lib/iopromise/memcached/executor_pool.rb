@@ -8,7 +8,17 @@ module IOPromise
 
         unless @current_batch.empty?
           @keys_to_promises = @current_batch.group_by { |promise| promise.key }
-          memcache_client.begin_get_multi(@keys_to_promises.keys)
+          begin
+            memcache_client.begin_get_multi(@keys_to_promises.keys)
+          rescue => e
+            @keys_to_promises.values.flatten.each do |promise|
+              promise.reject(e)
+              complete(promise)
+              @current_batch.delete(promise)
+            end
+
+            @keys_to_promises = nil
+          end
         end
       end
 

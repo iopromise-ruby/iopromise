@@ -90,4 +90,13 @@ RSpec.describe IOPromise::Memcached do
     expect_any_instance_of(Memcached::Client).to receive(:continue_get_multi).and_return([{}, [], []])
     p1.sync
   end
+
+  it "handles connection errors as rejections" do
+    client = IOPromise::Memcached.new('127.0.0.1:1111')
+
+    p = client.get_as_promise('foo')
+    expect { p.sync }.to raise_exception(::Memcached::ConnectionFailure)
+    expect(p).to_not be_pending
+    expect(p).to be_rejected
+  end
 end
