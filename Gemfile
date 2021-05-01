@@ -16,4 +16,8 @@ group :development, :test do
 
   # memcached adapter
   gem 'memcached', :git => 'https://github.com/theojulienne/memcached.git', :branch => 'continuable-get'
+
+  # view_component extensions
+  gem "rails"
+  gem "view_component", require: "view_component/engine"
 end
