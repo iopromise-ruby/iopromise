@@ -50,6 +50,7 @@ module IOPromise
 
       def sync
         data_as_promise.sync
+        self
       end
 
       def render_in(*)
