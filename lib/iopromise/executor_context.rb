@@ -38,7 +38,7 @@ module IOPromise
       writers = {}
       exceptions = {}
       max_timeout = nil
-      @pools.each do |pool|
+      @pools.dup.each do |pool|
         rd, wr, ex, ti = pool.execute_continue(@pool_ready_readers[pool], @pool_ready_writers[pool], @pool_ready_exceptions[pool])
         rd.each do |io|
           readers[io] = pool
