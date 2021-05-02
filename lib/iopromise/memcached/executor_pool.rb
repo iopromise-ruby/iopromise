@@ -2,12 +2,13 @@
 
 module IOPromise
   module Memcached
-    class MemcacheExecutorPool < IOPromise::ExecutorPool::Batch
+    class MemcacheExecutorPool < ::IOPromise::ExecutorPool::Batch
       def next_batch
         super
 
         unless @current_batch.empty?
           @keys_to_promises = @current_batch.group_by { |promise| promise.key }
+          @current_batch.each { |promise| begin_executing(promise) }
           begin
             memcache_client.begin_get_multi(@keys_to_promises.keys)
           rescue => e

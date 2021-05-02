@@ -1,12 +1,10 @@
 # frozen_string_literal: true
 
-require 'promise'
-
 require_relative 'executor_pool'
 
 module IOPromise
   module Deferred
-    class DeferredPromise < ::Promise
+    class DeferredPromise < ::IOPromise::Base
       def initialize(&block)
         super()
     

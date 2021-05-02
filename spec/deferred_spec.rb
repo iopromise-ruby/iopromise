@@ -47,4 +47,22 @@ RSpec.describe IOPromise::Deferred do
     expect(deferred.value).to eq(123)
     expect(deferred2.value).to eq(456)
   end
+
+  it "allows instrumentation hooks" do
+    begin_called = 0
+    finish_called = 0
+    begin_cb = proc { begin_called += 1 }
+    finish_cb = proc { finish_called += 1 }
+
+    deferred = IOPromise::Deferred.new { 123 }
+    deferred.instrument(begin_cb, finish_cb)
+
+    expect(begin_called).to eq(0)
+    expect(finish_called).to eq(0)
+
+    deferred.sync
+
+    expect(begin_called).to eq(1)
+    expect(finish_called).to eq(1)
+  end
 end

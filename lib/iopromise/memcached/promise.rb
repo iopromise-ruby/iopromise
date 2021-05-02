@@ -1,12 +1,10 @@
 # frozen_string_literal: true
 
-require 'promise'
-
 require_relative 'executor_pool'
 
 module IOPromise
   module Memcached
-    class MemcachePromise < ::Promise
+    class MemcachePromise < ::IOPromise::Base
       attr_reader :key
 
       def initialize(client = nil, key = nil)

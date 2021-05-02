@@ -23,6 +23,10 @@ module IOPromise
         @pending.delete(item)
       end
 
+      def begin_executing(item)
+        item.beginning
+      end
+
       # Continue execution of one or more pending IOPromises assigned to this pool.
       # Returns [readers, writers, exceptions, max_timeout], which are arrays of the
       # readers, writers, and exceptions to select on. The timeout specifies the maximum
