@@ -25,7 +25,12 @@ module IOPromise
 
       def run_deferred
         begin
-          fulfill(@block.call)
+          result = if @block.nil?
+            nil
+          else
+            @block.call
+          end
+          fulfill(result)
         rescue => exception
           reject(exception)
         end
