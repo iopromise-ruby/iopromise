@@ -12,11 +12,15 @@ module IOPromise
     
         @block = block
     
-        ::IOPromise::ExecutorContext.current.register(self)
+        ::IOPromise::ExecutorContext.current.register(self) unless @block.nil?
       end
     
       def wait
-        ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_complete: self)
+        if @block.nil?
+          super
+        else
+          ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_complete: self)
+        end
       end
     
       def execute_pool
@@ -24,13 +28,9 @@ module IOPromise
       end
 
       def run_deferred
+        return if @block.nil?
         begin
-          result = if @block.nil?
-            nil
-          else
-            @block.call
-          end
-          fulfill(result)
+          fulfill(@block.call)
         rescue => exception
           reject(exception)
         end

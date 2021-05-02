@@ -19,7 +19,11 @@ module IOPromise
       end
     
       def wait
-        ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_complete: self)
+        if @client.nil? || @key.nil?
+          super
+        else
+          ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_complete: self)
+        end
       end
     
       def execute_pool

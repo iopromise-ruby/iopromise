@@ -29,6 +29,6 @@ RSpec.describe IOPromise::ExecutorContext do
         end
       end
     end
-    pt.sync
+    expect(pt.sync).to eq('baz')
   end
 end

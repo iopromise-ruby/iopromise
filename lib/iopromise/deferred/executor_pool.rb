@@ -8,13 +8,17 @@ module IOPromise
           next_batch
         end
 
-        # we are just running this in the sync cycle, in a blocking way.
-        @current_batch.each do |promise|
-          promise.run_deferred
-          complete(promise)
-        end
+        until @current_batch.empty?
+          # we are just running this in the sync cycle, in a blocking way.
+          @current_batch.each do |promise|
+            promise.run_deferred
+            complete(promise)
+          end
 
-        @current_batch = []
+          @current_batch = []
+
+          next_batch
+        end
 
         # we always fully complete each cycle
         return [[], [], [], nil]

@@ -38,19 +38,30 @@ module IOPromise
       writers = {}
       exceptions = {}
       max_timeout = nil
-      @pools.dup.each do |pool|
-        rd, wr, ex, ti = pool.execute_continue(@pool_ready_readers[pool], @pool_ready_writers[pool], @pool_ready_exceptions[pool])
-        rd.each do |io|
-          readers[io] = pool
-        end
-        wr.each do |io|
-          writers[io] = pool
-        end
-        ex.each do |io|
-          exceptions[io] = pool
-        end
-        if max_timeout.nil? || (!ti.nil? && ti < max_timeout)
-          max_timeout = ti
+
+      # Continually add in any new registered pools so we don't execute with "no remaining work".
+      # This is needed because promises can spawn as results to existing promises and the guarantee
+      # that the new promise is completes needs to still hold in that case.
+      pools_iterated = Set.new
+      loop do
+        unread_pools = @pools - pools_iterated
+        pools_iterated = pools_iterated + unread_pools
+        break if unread_pools.empty?
+        
+        unread_pools.each do |pool|
+          rd, wr, ex, ti = pool.execute_continue(@pool_ready_readers[pool], @pool_ready_writers[pool], @pool_ready_exceptions[pool])
+          rd.each do |io|
+            readers[io] = pool
+          end
+          wr.each do |io|
+            writers[io] = pool
+          end
+          ex.each do |io|
+            exceptions[io] = pool
+          end
+          if max_timeout.nil? || (!ti.nil? && ti < max_timeout)
+            max_timeout = ti
+          end
         end
       end
       [readers, writers, exceptions, max_timeout]
