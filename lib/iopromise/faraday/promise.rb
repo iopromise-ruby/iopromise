@@ -16,10 +16,6 @@ module IOPromise
         @response = response
         @started = false
 
-        # mark as starting immediately, ideally we would trigger this once the request is
-        # actually dequeued from the hydra into the multi_socket.
-        execute_pool.begin_executing(self)
-    
         unless @response.nil?
           @response.on_complete do |response_env|
             fulfill(@response)
