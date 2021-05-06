@@ -63,7 +63,7 @@ module IOPromise
         raise ::IOPromise::Error.new('Internal error: IO loop completed without fulfilling the desired promise')
       else
         @pools.each do |pool|
-          pool.sync
+          pool.wait
         end
       end
     ensure

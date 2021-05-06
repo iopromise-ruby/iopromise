@@ -10,9 +10,9 @@ module IOPromise
       end
     
       def next_batch
-        # ensure that all current items are fully synced
+        # ensure that all current items are fully completed
         @current_batch.each do |promise|
-          promise.sync
+          promise.wait
         end
         
         # every pending operation becomes part of the current batch
