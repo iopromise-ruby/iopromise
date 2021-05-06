@@ -40,6 +40,7 @@ module IOPromise
         end
 
         so_far.each do |key, value|
+          next unless @keys_to_promises[key]
           @keys_to_promises[key].each do |promise|
             next if promise.fulfilled?
 
