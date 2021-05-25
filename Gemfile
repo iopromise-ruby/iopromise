@@ -17,6 +17,9 @@ group :development, :test do
   # memcached adapter
   gem 'memcached', :git => 'https://github.com/theojulienne/memcached.git', :branch => 'continuable-get'
 
+  # dalli adapter
+  gem 'dalli', "= 2.7.11"
+
   # view_component extensions
   gem "rails"
   gem "view_component", require: "view_component/engine"

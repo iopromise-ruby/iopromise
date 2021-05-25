@@ -76,6 +76,7 @@ GEM
     builder (3.2.4)
     concurrent-ruby (1.1.8)
     crass (1.0.6)
+    dalli (2.7.11)
     diff-lcs (1.4.4)
     erubi (1.10.0)
     ethon (0.14.0)
@@ -176,6 +177,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  dalli (= 2.7.11)
   faraday
   iopromise!
   memcached!
