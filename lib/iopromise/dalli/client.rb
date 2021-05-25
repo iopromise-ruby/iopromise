@@ -18,8 +18,8 @@ module IOPromise
         @client = ::Dalli::Client.new(servers, options)
       end
 
-      # Returns a promise that resolves to the value for the given key,
-      # or +nil+ if the key is not found.
+      # Returns a promise that resolves to a IOPromise::Dalli::Response with the
+      # value for the given key, or +nil+ if the key is not found.
       def get(key, options = nil)
         execute_as_promise(:get, key, options)
       end
@@ -35,10 +35,10 @@ module IOPromise
       def fetch(key, ttl = nil, options = nil, &block)
         # match the Dalli behaviour exactly
         options = options.nil? ? ::Dalli::Client::CACHE_NILS : options.merge(::Dalli::Client::CACHE_NILS) if @cache_nils
-        get(key, options).then do |val|
+        get(key, options).then do |response|
           not_found = @options[:cache_nils] ?
-            val == Dalli::Server::NOT_FOUND :
-            val.nil?
+            !response.exist? :
+            response.value.nil?
           if not_found && !block.nil?
             Promise.resolve(block.call).then do |new_val|
               # delay the final resolution here until after the add succeeds,
@@ -48,26 +48,26 @@ module IOPromise
               add(key, new_val, ttl, options).then { new_val }
             end
           else
-            Promise.resolve(val)
+            Promise.resolve(response.value)
           end
         end
       end
 
       # Unconditionally sets the +key+ to the +value+ specified.
-      # Returns a promise that resolves when the value is written.
+      # Returns a promise that resolves to a IOPromise::Dalli::Response.
       def set(key, value, ttl = nil, options = nil)
         execute_as_promise(:set, key, value, ttl_or_default(ttl), 0, options)
       end
 
       # Conditionally sets the +key+ to the +value+ specified.
-      # Returns a promise that resolves when the operation is confirmed.
+      # Returns a promise that resolves to a IOPromise::Dalli::Response.
       def add(key, value, ttl = nil, options = nil)
         execute_as_promise(:add, key, value, ttl_or_default(ttl), options)
       end
 
       # Conditionally sets the +key+ to the +value+ specified only
       # if the key already exists.
-      # Returns a promise that resolves when the peration is confirmed.
+      # Returns a promise that resolves to a IOPromise::Dalli::Response.
       def replace(key, value, ttl = nil, options = nil)
         execute_as_promise(:replace, key, value, ttl_or_default(ttl), 0, options)
       end

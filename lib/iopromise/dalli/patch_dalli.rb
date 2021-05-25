@@ -128,10 +128,10 @@ module IOPromise
         generic_write_op(:set, key, value, ttl, cas, options)
       end
 
-      def add(key, value, ttl, cas, options)
+      def add(key, value, ttl, options)
         return super unless async?
 
-        generic_write_op(:add, key, value, ttl, cas, options)
+        generic_write_op(:add, key, value, ttl, 0, options)
       end
 
       def replace(key, value, ttl, cas, options)

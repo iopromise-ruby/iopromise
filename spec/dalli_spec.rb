@@ -235,4 +235,38 @@ RSpec.describe IOPromise::Dalli do
     expect(response).to be_exist
     expect(response.value).to eq('3')
   end
+
+  it "supports fetch with no existing value" do
+    client = IOPromise::Dalli.new('localhost:11211')
+
+    client.delete('fetch').sync
+
+    p = client.fetch('fetch') do
+      'computed value'
+    end
+
+    response = p.sync
+    expect(response).to eq('computed value') # fetch unwraps!
+
+    response = client.get('fetch').sync
+    expect(response).to be_exist
+    expect(response.value).to eq('computed value')
+  end
+
+  it "supports fetch with an existing value" do
+    client = IOPromise::Dalli.new('localhost:11211')
+
+    client.set('fetch', 'hello').sync
+
+    p = client.fetch('fetch') do
+      'computed value'
+    end
+
+    response = p.sync
+    expect(response).to eq('hello') # fetch unwraps!
+
+    response = client.get('fetch').sync
+    expect(response).to be_exist
+    expect(response.value).to eq('hello')
+  end
 end
