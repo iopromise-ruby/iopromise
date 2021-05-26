@@ -12,6 +12,7 @@ module IOPromise
     
         @server = server
         @key = key
+        @start_time = nil
     
         ::IOPromise::ExecutorContext.current.register(self) unless @server.nil? || @key.nil?
       end
@@ -26,6 +27,25 @@ module IOPromise
     
       def execute_pool
         DalliExecutorPool.for(@server)
+      end
+
+      def in_select_loop
+        if @start_time.nil?
+          @start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        end
+      end
+
+      def timeout_remaining
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        elapsed = now - @start_time
+        remaining = @server.options[:socket_timeout] - elapsed
+        return 0 if remaining < 0
+        remaining
+      end
+
+      def timeout?
+        return false if @start_time.nil?
+        timeout_remaining <= 0
       end
     end
   end

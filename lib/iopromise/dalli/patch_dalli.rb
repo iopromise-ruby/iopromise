@@ -78,11 +78,30 @@ module IOPromise
         exceptions = [@sock]
         timeout = nil
 
+        to_timeout = @pending_ops.select { |key, op| op.timeout? }
+        to_timeout.each do |key, op|
+          @pending_ops.delete(key)
+          op.reject(Timeout::Error.new)
+          op.execute_pool.complete(op)
+        end
+
         unless @pending_ops.empty?
           # wait for writability if we have pending data to write
           writers << @sock if @write_buffer.bytesize > @write_offset
           # and always call back when there is data available to read
           readers << @sock
+
+          # let all pending operations know that they are seeing the
+          # select loop. this starts the timer for the operation, because
+          # it guarantees we're now working on it.
+          # this is more accurate than starting the timer when we buffer
+          # the write.
+          @pending_ops.each do |_, op|
+            op.in_select_loop
+          end
+
+          # mark the amount of time left of the closest to timeout.
+          timeout = @pending_ops.map { |_, op| op.timeout_remaining }.min
         end
 
         [readers, writers, exceptions, timeout]

@@ -269,4 +269,18 @@ RSpec.describe IOPromise::Dalli do
     expect(response).to be_exist
     expect(response.value).to eq('hello')
   end
+
+  it "times out queries" do
+    client = IOPromise::Dalli.new('localhost:11211')
+
+    expect(IO).to receive(:select).exactly(3).times do
+      sleep(0.4)
+      [[], [], []]
+    end
+
+    p = client.set('timeout', 'hello')
+    expect { p.sync }.to raise_exception(::Timeout::Error)
+    expect(p).to_not be_pending
+    expect(p).to be_rejected
+  end
 end
