@@ -36,18 +36,18 @@ module IOPromise
       @started_executing
     end
 
-    def notify_completion
-      @instrument_end.each { |cb| cb.call(self) }
+    def notify_completion(value: nil, reason: nil)
+      @instrument_end.each { |cb| cb.call(self, value: value, reason: reason) }
       @instrument_end = []
     end
 
     def fulfill(value)
-      notify_completion
+      notify_completion(value: value)
       super(value)
     end
 
     def reject(reason)
-      notify_completion
+      notify_completion(reason: reason)
       super(reason)
     end
   end
