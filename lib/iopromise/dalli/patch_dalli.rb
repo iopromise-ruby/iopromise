@@ -63,14 +63,14 @@ module IOPromise
       def execute_continue(ready_readers, ready_writers, ready_exceptions)
         unless ready_writers.nil? || ready_writers.empty?
           # we are able to write, so write as much as we can.
-          sock_write_nonblock
+          async_sock_write_nonblock
         end
 
         readers_empty = ready_readers.nil? || ready_readers.empty?
         exceptions_empty = ready_exceptions.nil? || ready_exceptions.empty?
 
         if !readers_empty || !exceptions_empty
-          sock_read_nonblock
+          async_sock_read_nonblock
         end
 
         readers = []
@@ -115,8 +115,8 @@ module IOPromise
 
 
       def promised_request(key, &block)
-        promise, opaque = new_pending(key)
-        buffered_write(block.call(opaque))
+        promise, opaque = async_new_pending(key)
+        async_buffered_write(block.call(opaque))
         promise
       end
 
@@ -128,12 +128,12 @@ module IOPromise
         end
       end
 
-      def generic_write_op(op, key, value, ttl, cas, options)
+      def async_generic_write_op(op, key, value, ttl, cas, options)
         Promise.resolve(value).then do |value|
           (value, flags) = serialize(key, value, options)
           ttl = sanitize_ttl(ttl)
     
-          guard_max_value(key, value)
+          guard_max_value_with_raise(key, value)
 
           promised_request(key) do |opaque|
             [REQUEST, OPCODES[op], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, opaque, cas, flags, ttl, key, value].pack(FORMAT[op])
@@ -144,19 +144,19 @@ module IOPromise
       def set(key, value, ttl, cas, options)
         return super unless async?
 
-        generic_write_op(:set, key, value, ttl, cas, options)
+        async_generic_write_op(:set, key, value, ttl, cas, options)
       end
 
       def add(key, value, ttl, options)
         return super unless async?
 
-        generic_write_op(:add, key, value, ttl, 0, options)
+        async_generic_write_op(:add, key, value, ttl, 0, options)
       end
 
       def replace(key, value, ttl, cas, options)
         return super unless async?
 
-        generic_write_op(:replace, key, value, ttl, cas, options)
+        async_generic_write_op(:replace, key, value, ttl, cas, options)
       end
 
       def delete(key, cas)
@@ -167,7 +167,7 @@ module IOPromise
         end
       end
 
-      def append_prepend_op(op, key, value)
+      def async_append_prepend_op(op, key, value)
         promised_request(key) do |opaque|
           [REQUEST, OPCODES[op], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, opaque, 0, key, value].pack(FORMAT[op])
         end
@@ -176,13 +176,13 @@ module IOPromise
       def append(key, value)
         return super unless async?
 
-        append_prepend_op(:append, key, value)
+        async_append_prepend_op(:append, key, value)
       end
 
       def prepend(key, value)
         return super unless async?
 
-        append_prepend_op(:prepend, key, value)
+        async_append_prepend_op(:prepend, key, value)
       end
 
       def flush
@@ -193,7 +193,7 @@ module IOPromise
         end
       end
 
-      def decr_incr(opcode, key, count, ttl, default)
+      def async_decr_incr(opcode, key, count, ttl, default)
         expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
         default ||= 0
         (h, l) = split(count)
@@ -206,16 +206,16 @@ module IOPromise
       def decr(key, count, ttl, default)
         return super unless async?
 
-        decr_incr :decr, key, count, ttl, default
+        async_decr_incr :decr, key, count, ttl, default
       end
   
       def incr(key, count, ttl, default)
         return super unless async?
         
-        decr_incr :incr, key, count, ttl, default
+        async_decr_incr :incr, key, count, ttl, default
       end
 
-      def new_pending(key)
+      def async_new_pending(key)
         promise = ::IOPromise::Dalli::DalliPromise.new(self, key)
         new_id = @next_opaque_id
         @pending_ops[new_id] = promise
@@ -223,12 +223,12 @@ module IOPromise
         [promise, new_id]
       end
 
-      def buffered_write(data)
+      def async_buffered_write(data)
         @write_buffer << data
-        sock_write_nonblock
+        async_sock_write_nonblock
       end
 
-      def sock_write_nonblock
+      def async_sock_write_nonblock
         begin
           bytes_written = @sock.write_nonblock(@write_buffer.byteslice(@write_offset..-1))
         rescue IO::WaitWritable, Errno::EINTR
@@ -246,7 +246,7 @@ module IOPromise
 
       FULL_HEADER = 'CCnCCnNNQ'
 
-      def sock_read_nonblock
+      def async_sock_read_nonblock
         @read_buffer << @sock.read_available
 
         buf = @read_buffer
@@ -322,8 +322,8 @@ module IOPromise
         super
       end
 
-      # FIXME: this is from the master version, rather than using the yield block.
-      def guard_max_value(key, value)
+      # this is guard_max_value from the master version, rather than using the yield block.
+      def guard_max_value_with_raise(key, value)
         return if value.bytesize <= @options[:value_max_bytes]
   
         message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
