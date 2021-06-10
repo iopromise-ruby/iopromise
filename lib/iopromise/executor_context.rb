@@ -5,17 +5,20 @@ require 'set'
 module IOPromise
   class ExecutorContext
     class << self
+      def context_stack
+        @contexts ||= [ExecutorContext.new]
+      end
+
       def push
-        @contexts ||= []
-        @contexts << ExecutorContext.new
+        context_stack << ExecutorContext.new
       end
 
       def current
-        @contexts.last
+        context_stack.last
       end
 
       def pop
-        @contexts.pop
+        context_stack.pop
       end
     end
 
