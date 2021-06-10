@@ -26,7 +26,8 @@ module IOPromise
       end
     
       def execute_pool
-        DalliExecutorPool.for(@server)
+        return @pool if defined? @pool
+        @pool = DalliExecutorPool.for(@server)
       end
 
       def in_select_loop
