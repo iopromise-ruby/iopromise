@@ -8,8 +8,8 @@ GIT
 PATH
   remote: .
   specs:
-    iopromise (0.1.0)
-      promise.rb
+    iopromise (0.1.1)
+      promise.rb (~> 0.7.4)
 
 GEM
   remote: https://rubygems.org/
