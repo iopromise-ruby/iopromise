@@ -27,10 +27,6 @@ module IOPromise
       monitor
     end
 
-    def cancel_pending
-      # not yet implemented, but would be a good thing to support
-    end
-
     def register(promise)
       @pending_registrations << promise
     end
