@@ -7,11 +7,10 @@ module IOPromise
       end
     
       def call(env)
-        ::IOPromise::ExecutorContext.push
         begin
           status, headers, body = @app.call(env)
         ensure
-          ::IOPromise::ExecutorContext.pop
+          ::IOPromise::ExecutorContext.current.cancel_pending
         end
         [status, headers, body]
       end

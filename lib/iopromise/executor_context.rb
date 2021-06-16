@@ -1,35 +1,34 @@
 # frozen_string_literal: true
 
 require 'set'
+require 'nio'
 
 module IOPromise
   class ExecutorContext
     class << self
-      def context_stack
-        @contexts ||= [ExecutorContext.new]
-      end
-
-      def push
-        context_stack << ExecutorContext.new
-      end
-
       def current
-        context_stack.last
-      end
-
-      def pop
-        context_stack.pop
+        @context ||= ExecutorContext.new
       end
     end
 
     def initialize
-      @pools = Set.new
-
-      @pool_ready_readers = {}
-      @pool_ready_writers = {}
-      @pool_ready_exceptions = {}
+      @pools = {}
 
       @pending_registrations = []
+
+      @selector = NIO::Selector.new
+
+      super
+    end
+
+    def register_observer_io(observer, io, interest)
+      monitor = @selector.register(io, interest)
+      monitor.value = observer
+      monitor
+    end
+
+    def cancel_pending
+      # not yet implemented, but would be a good thing to support
     end
 
     def register(promise)
@@ -40,32 +39,34 @@ module IOPromise
       loop do
         complete_pending_registrations
 
-        readers, writers, exceptions, wait_time = continue_to_read_pools
-
+        @pools.each do |pool, _|
+          pool.execute_continue
+        end
+        
         unless end_when_complete.nil?
           return unless end_when_complete.pending?
         end
-
-        break if readers.empty? && writers.empty? && exceptions.empty? && @pending_registrations.empty?
+        
+        break if @selector.empty?
 
         # if we have any pending promises to register, we'll not block at all so we immediately continue
-        wait_time = 0 unless @pending_registrations.empty?
-  
-        # we could be clever and decide which ones to "continue" on next
-        ready = IO.select(readers.keys, writers.keys, exceptions.keys, wait_time)
-        ready = [[], [], []] if ready.nil?
-        ready_readers, ready_writers, ready_exceptions = ready
-
-        # group by the pool object that provided the fd
-        @pool_ready_readers = ready_readers.group_by { |i| readers[i] }
-        @pool_ready_writers = ready_writers.group_by { |i| writers[i] }
-        @pool_ready_exceptions = ready_exceptions.group_by { |i| exceptions[i] }
+        unless @pending_registrations.empty?
+          wait_time = 0
+        else
+          wait_time = nil
+          @pools.each do |pool, _|
+            timeout = pool.select_timeout
+            wait_time = timeout if wait_time.nil? || (!timeout.nil? && timeout < wait_time)
+          end
+        end
+        
+        ready_count = select(wait_time)
       end
-  
+
       unless end_when_complete.nil?
         raise ::IOPromise::Error.new('Internal error: IO loop completed without fulfilling the desired promise')
       else
-        @pools.each do |pool|
+        @pools.each do |pool, _|
           pool.wait
         end
       end
@@ -75,7 +76,15 @@ module IOPromise
 
     private
 
+    def select(wait_time)
+      @selector.select(wait_time) do |monitor|
+        observer = monitor.value
+        observer.monitor_ready(monitor, monitor.readiness)
+      end
+    end
+
     def complete_pending_registrations
+      return if @pending_registrations.empty?
       pending = @pending_registrations
       @pending_registrations = []
       pending.each do |promise|
@@ -83,35 +92,10 @@ module IOPromise
       end
     end
 
-    def continue_to_read_pools
-      readers = {}
-      writers = {}
-      exceptions = {}
-      max_timeout = nil
-
-      @pools.each do |pool|
-        rd, wr, ex, ti = pool.execute_continue(@pool_ready_readers[pool], @pool_ready_writers[pool], @pool_ready_exceptions[pool])
-        rd.each do |io|
-          readers[io] = pool
-        end
-        wr.each do |io|
-          writers[io] = pool
-        end
-        ex.each do |io|
-          exceptions[io] = pool
-        end
-        if max_timeout.nil? || (!ti.nil? && ti < max_timeout)
-          max_timeout = ti
-        end
-      end
-
-      [readers, writers, exceptions, max_timeout]
-    end
-
     def register_now(promise)
       pool = promise.execute_pool
       pool.register(promise)
-      @pools.add(pool)
+      @pools[pool] = true
     end
   end
 end

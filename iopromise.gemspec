@@ -27,4 +27,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency 'promise.rb', '~> 0.7.4'
+  spec.add_dependency 'nio4r'
 end

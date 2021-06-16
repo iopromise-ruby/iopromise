@@ -3,29 +3,21 @@
 module IOPromise
   module ExecutorPool
     class Sequential < Base
-      def execute_continue_item(item, ready_readers, ready_writers, ready_exceptions)
-        item.execute_continue(ready_readers, ready_writers, ready_exceptions)
+      def execute_continue_item(item)
+        item.execute_continue
       end
     
-      def execute_continue(ready_readers, ready_writers, ready_exceptions)
+      def execute_continue
         @pending.dup.each do |active|
-          status = if active.fulfilled?
-            nil
-          else
-            execute_continue_item(active, ready_readers, ready_writers, ready_exceptions)
-          end
+          execute_continue_item(active)
           
-          unless status.nil?
+          unless active.fulfilled?
             # once we're waiting on our one next item, we're done
-            return status
-          else
-            # we're done with this one, so remove it
-            complete(active)
+            return
           end
         end
     
         # if we fall through to here, we have nothing to wait on.
-        [[], [], [], nil]
       end
     end
   end

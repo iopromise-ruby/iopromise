@@ -3,12 +3,6 @@
 require 'iopromise/dalli'
 
 RSpec.describe IOPromise::Dalli do
-  around(:each) do |test|
-    ::IOPromise::ExecutorContext.push
-    test.run
-    ::IOPromise::ExecutorContext.pop
-  end
-
   it "returns a pending promise for a get request" do
     client = IOPromise::Dalli.new('localhost:11211')
     
@@ -273,7 +267,7 @@ RSpec.describe IOPromise::Dalli do
   it "times out queries" do
     client = IOPromise::Dalli.new('localhost:11211')
 
-    expect(IO).to receive(:select).exactly(3).times do
+    expect_any_instance_of(NIO::Selector).to receive(:select).exactly(2).times do
       sleep(0.4)
       [[], [], []]
     end

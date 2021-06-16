@@ -26,7 +26,7 @@ module IOPromise
       end
 
       def run_deferred
-        return if @block.nil?
+        return if @block.nil? || !pending?
         begin
           fulfill(@block.call)
         rescue => exception

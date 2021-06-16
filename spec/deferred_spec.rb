@@ -4,12 +4,6 @@ require 'iopromise'
 require 'iopromise/deferred'
 
 RSpec.describe IOPromise::Deferred do
-  around(:each) do |test|
-    ::IOPromise::ExecutorContext.push
-    test.run
-    ::IOPromise::ExecutorContext.pop
-  end
-
   it "leaves the promise pending initially" do
     deferred = IOPromise::Deferred.new { 123 }
     

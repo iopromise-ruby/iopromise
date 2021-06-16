@@ -3,7 +3,7 @@
 module IOPromise
   module Deferred
     class DeferredExecutorPool < ::IOPromise::ExecutorPool::Batch
-      def execute_continue(ready_readers, ready_writers, ready_exceptions)
+      def execute_continue
         if @current_batch.empty?
           next_batch
         end
@@ -13,7 +13,6 @@ module IOPromise
           @current_batch.each do |promise|
             begin_executing(promise)
             promise.run_deferred
-            complete(promise)
           end
 
           @current_batch = []
@@ -22,7 +21,6 @@ module IOPromise
         end
 
         # we always fully complete each cycle
-        return [[], [], [], nil]
       end
     end
   end

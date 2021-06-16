@@ -21,7 +21,7 @@ module IOPromise
       # Returns a promise that resolves to a IOPromise::Dalli::Response with the
       # value for the given key, or +nil+ if the key is not found.
       def get(key, options = nil)
-        execute_as_promise(:get, key, options)
+        @client.perform(:get, key, options)
       end
 
       # Convenience function that attempts to fetch the given key, or set
@@ -40,7 +40,7 @@ module IOPromise
             !response.exist? :
             response.value.nil?
           if not_found && !block.nil?
-            Promise.resolve(block.call).then do |new_val|
+            block.call.then do |new_val|
               # delay the final resolution here until after the add succeeds,
               # to guarantee errors are caught. we could potentially allow
               # the add to resolve once it's sent (without confirmation), but
@@ -48,7 +48,7 @@ module IOPromise
               add(key, new_val, ttl, options).then { new_val }
             end
           else
-            Promise.resolve(response.value)
+            response.value
           end
         end
       end
@@ -56,40 +56,40 @@ module IOPromise
       # Unconditionally sets the +key+ to the +value+ specified.
       # Returns a promise that resolves to a IOPromise::Dalli::Response.
       def set(key, value, ttl = nil, options = nil)
-        execute_as_promise(:set, key, value, ttl_or_default(ttl), 0, options)
+        @client.perform(:set, key, value, ttl_or_default(ttl), 0, options)
       end
 
       # Conditionally sets the +key+ to the +value+ specified.
       # Returns a promise that resolves to a IOPromise::Dalli::Response.
       def add(key, value, ttl = nil, options = nil)
-        execute_as_promise(:add, key, value, ttl_or_default(ttl), options)
+        @client.perform(:add, key, value, ttl_or_default(ttl), options)
       end
 
       # Conditionally sets the +key+ to the +value+ specified only
       # if the key already exists.
       # Returns a promise that resolves to a IOPromise::Dalli::Response.
       def replace(key, value, ttl = nil, options = nil)
-        execute_as_promise(:replace, key, value, ttl_or_default(ttl), 0, options)
+        @client.perform(:replace, key, value, ttl_or_default(ttl), 0, options)
       end
 
       # Deletes the specified key, resolving the promise when complete.
       def delete(key)
-        execute_as_promise(:delete, key, 0)
+        @client.perform(:delete, key, 0)
       end
 
       # Appends a value to the specified key, resolving the promise when complete.
       # Appending only works for values stored with :raw => true.
       def append(key, value)
-        Promise.resolve(value).then do |resolved_value|
-          execute_as_promise(:append, key, resolved_value.to_s)
+        value.then do |resolved_value|
+          @client.perform(:append, key, resolved_value.to_s)
         end
       end
   
       # Prepend a value to the specified key, resolving the promise when complete.
       # Prepending only works for values stored with :raw => true.
       def prepend(key, value)
-        Promise.resolve(value).then do |resolved_value|
-          execute_as_promise(:prepend, key, resolved_value.to_s)
+        value.then do |resolved_value|
+          @client.perform(:prepend, key, resolved_value.to_s)
         end
       end
 
@@ -106,7 +106,7 @@ module IOPromise
       # #cas.
       def incr(key, amt = 1, ttl = nil, default = nil)
         raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-        execute_as_promise(:incr, key, amt.to_i, ttl_or_default(ttl), default)
+        @client.perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
       end
 
       ##
@@ -125,16 +125,12 @@ module IOPromise
       # #cas.
       def decr(key, amt = 1, ttl = nil, default = nil)
         raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-        execute_as_promise(:decr, key, amt.to_i, ttl_or_default(ttl), default)
+        @client.perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
       end
 
       # TODO: touch, gat, CAS operations
 
       private
-
-      def execute_as_promise(*args)
-        @client.perform_async(*args)
-      end
 
       def ttl_or_default(ttl)
         (ttl || @options[:expires_in]).to_i

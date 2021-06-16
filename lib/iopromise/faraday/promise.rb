@@ -19,7 +19,6 @@ module IOPromise
         unless @response.nil?
           @response.on_complete do |response_env|
             fulfill(@response)
-            execute_pool.complete(self)
           end
         end
     

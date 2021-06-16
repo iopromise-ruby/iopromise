@@ -12,16 +12,16 @@ module IOPromise
         super
       end
 
-      def perform_async(*args)
-        if @async
-          perform(*args)
-        else
-          raise ArgumentError, "Cannot perform_async when async is not enabled."
+      def perform(*)
+        return super unless @async
+
+        begin
+          super
+        rescue => ex
+          # Wrap any connection errors into a promise, this is more forwards-compatible
+          # if we ever attempt to make connecting/server fallback nonblocking too.
+          Promise.new.tap { |p| p.reject(ex) }
         end
-      rescue => ex
-        # Wrap any connection errors into a promise, this is more forwards-compatible
-        # if we ever attempt to make connecting/server fallback nonblocking too.
-        Promise.new.tap { |p| p.reject(ex) }
       end
     end
 
@@ -30,10 +30,14 @@ module IOPromise
         @async = options.delete(:iopromise_async) == true
 
         if @async
+          @write_buffer = +""
+          @read_buffer = +""
           async_reset
 
           @next_opaque_id = 0
           @pending_ops = {}
+
+          @executor_pool = DalliExecutorPool.for(self)
         end
 
         super
@@ -51,60 +55,53 @@ module IOPromise
         super
       end
 
+      def connect
+        super
+
+        if async?
+          @executor_pool.connected_socket(@sock)
+        end
+      end
+
       def async_reset
-        @write_buffer = +""
+        @write_buffer.clear
         @write_offset = 0
 
-        @read_buffer = +""
+        @read_buffer.clear
         @read_offset = 0
+
+        @executor_pool.close_socket if defined? @executor_pool
+      end
+
+      def async_io_ready(readable, writable)
+        async_sock_write_nonblock if writable
+        async_sock_read_nonblock if readable
       end
 
       # called by ExecutorPool to continue processing for this server
-      def execute_continue(ready_readers, ready_writers, ready_exceptions)
-        unless ready_writers.nil? || ready_writers.empty?
-          # we are able to write, so write as much as we can.
-          async_sock_write_nonblock
-        end
-
-        readers_empty = ready_readers.nil? || ready_readers.empty?
-        exceptions_empty = ready_exceptions.nil? || ready_exceptions.empty?
-
-        if !readers_empty || !exceptions_empty
-          async_sock_read_nonblock
-        end
-
-        readers = []
-        writers = []
-        exceptions = [@sock]
-        timeout = nil
-
-        to_timeout = @pending_ops.select { |key, op| op.timeout? }
-        to_timeout.each do |key, op|
-          @pending_ops.delete(key)
-          op.reject(Timeout::Error.new)
-          op.execute_pool.complete(op)
-        end
-
-        unless @pending_ops.empty?
-          # wait for writability if we have pending data to write
-          writers << @sock if @write_buffer.bytesize > @write_offset
-          # and always call back when there is data available to read
-          readers << @sock
+      def execute_continue
+        timeout = @options[:socket_timeout]
+        @pending_ops.select! do |key, op|
+          if op.timeout?
+            op.reject(Timeout::Error.new)
+            next false # this op is done
+          end
 
           # let all pending operations know that they are seeing the
           # select loop. this starts the timer for the operation, because
           # it guarantees we're now working on it.
           # this is more accurate than starting the timer when we buffer
           # the write.
-          @pending_ops.each do |_, op|
-            op.in_select_loop
-          end
+          op.in_select_loop
 
-          # mark the amount of time left of the closest to timeout.
-          timeout = @pending_ops.map { |_, op| op.timeout_remaining }.min
+          remaining = op.timeout_remaining
+          timeout = remaining if remaining < timeout
+
+          true # keep
         end
 
-        [readers, writers, exceptions, timeout]
+        @executor_pool.select_timeout = timeout
+        @executor_pool.set_interest(:r, !@pending_ops.empty?)
       end
 
       private
@@ -115,8 +112,14 @@ module IOPromise
 
 
       def promised_request(key, &block)
-        promise, opaque = async_new_pending(key)
-        async_buffered_write(block.call(opaque))
+        promise = ::IOPromise::Dalli::DalliPromise.new(self, key)
+        
+        new_id = @next_opaque_id
+        @pending_ops[new_id] = promise
+        @next_opaque_id = (@next_opaque_id + 1) & 0xffff_ffff
+        
+        async_buffered_write(block.call(new_id))
+
         promise
       end
 
@@ -129,7 +132,7 @@ module IOPromise
       end
 
       def async_generic_write_op(op, key, value, ttl, cas, options)
-        Promise.resolve(value).then do |value|
+        value.then do |value|
           (value, flags) = serialize(key, value, options)
           ttl = sanitize_ttl(ttl)
     
@@ -143,7 +146,6 @@ module IOPromise
 
       def set(key, value, ttl, cas, options)
         return super unless async?
-
         async_generic_write_op(:set, key, value, ttl, cas, options)
       end
 
@@ -215,94 +217,109 @@ module IOPromise
         async_decr_incr :incr, key, count, ttl, default
       end
 
-      def async_new_pending(key)
-        promise = ::IOPromise::Dalli::DalliPromise.new(self, key)
-        new_id = @next_opaque_id
-        @pending_ops[new_id] = promise
-        @next_opaque_id = (@next_opaque_id + 1) & 0xffff_ffff
-        [promise, new_id]
-      end
-
       def async_buffered_write(data)
         @write_buffer << data
         async_sock_write_nonblock
       end
 
       def async_sock_write_nonblock
+        remaining = @write_buffer.byteslice(@write_offset, @write_buffer.length)
         begin
-          bytes_written = @sock.write_nonblock(@write_buffer.byteslice(@write_offset..-1))
-        rescue IO::WaitWritable, Errno::EINTR
-          return # no room to write immediately
+          bytes_written = @sock.write_nonblock(remaining, exception: false)
+        rescue Errno::EINTR
+          retry
         end
+
+        return if bytes_written == :wait_writable
         
         @write_offset += bytes_written
-        if @write_offset == @write_buffer.length
-          @write_buffer = +""
+        completed = (@write_offset == @write_buffer.length)
+        if completed
+          @write_buffer.clear
           @write_offset = 0
         end
+        @executor_pool.set_interest(:w, !completed)
       rescue SystemCallError, Timeout::Error => e
         failure!(e)
       end
 
       FULL_HEADER = 'CCnCCnNNQ'
 
+      def read_available
+        loop do
+          result = @sock.read_nonblock(8196, exception: false)
+          if result == :wait_readable
+            break
+          elsif result == :wait_writable
+            break
+          elsif result
+            @read_buffer << result
+          else
+            raise Errno::ECONNRESET, "Connection reset: #{safe_options.inspect}"
+          end
+        end
+      end
+
       def async_sock_read_nonblock
-        @read_buffer << @sock.read_available
+        read_available
 
         buf = @read_buffer
         pos = @read_offset
 
         while buf.bytesize - pos >= 24
-          header = buf.slice(pos, 24)
+          header = buf.byteslice(pos, 24)
           (magic, opcode, key_length, extra_length, data_type, status, body_length, opaque, cas) = header.unpack(FULL_HEADER)
 
           if buf.bytesize - pos >= 24 + body_length
-            flags = 0
-            if extra_length >= 4
-              flags = buf.slice(pos + 24, 4).unpack1("N")
-            end
+            exists = (status != 1) # Key not found
+            this_pos = pos
 
-            key = buf.slice(pos + 24 + extra_length, key_length)
-            value = buf.slice(pos + 24 + extra_length + key_length, body_length - key_length - extra_length)
+            # key = buf.byteslice(this_pos + 24 + extra_length, key_length)
+            value = buf.byteslice(this_pos + 24 + extra_length + key_length, body_length - key_length - extra_length) if exists
 
             pos = pos + 24 + body_length
 
             promise = @pending_ops.delete(opaque)
             next if promise.nil?
 
-            result = Promise.resolve(true).then do # auto capture exceptions below
-              raise Dalli::DalliError, "Response error #{status}: #{Dalli::RESPONSE_CODES[status]}" unless [0,1,2,5].include?(status)
-
-              exists = (status != 1) # Key not found
+            begin
+              raise Dalli::DalliError, "Response error #{status}: #{Dalli::RESPONSE_CODES[status]}" unless status == 0 || status == 1 || status == 2 || status == 5
+              
               final_value = nil
               if opcode == OPCODES[:incr] || opcode == OPCODES[:decr]
                 final_value = value.unpack1("Q>")
               elsif exists
+                flags = if extra_length >= 4
+                  buf.byteslice(this_pos + 24, 4).unpack1("N")
+                else
+                  0
+                end
                 final_value = deserialize(value, flags)
               end
 
-              ::IOPromise::Dalli::Response.new(
+              response = ::IOPromise::Dalli::Response.new(
                 key: promise.key,
                 value: final_value,
                 exists: exists,
                 stored: !(status == 2 || status == 5), # Key exists or Item not stored
                 cas: cas,
               )
-            end
 
-            promise.fulfill(result)
-            promise.execute_pool.complete(promise)
+              promise.fulfill(response)
+            rescue => ex
+              promise.reject(ex)
+            end
           else
             # not enough data yet, wait for more
             break
           end
         end
 
-        @read_offset = pos
-
-        if @read_offset == @read_buffer.length
-          @read_buffer = +""
+        if pos == @read_buffer.length
+          @read_buffer.clear
           @read_offset = 0
+        else
+          @read_offset = pos
         end
 
       rescue SystemCallError, Timeout::Error, EOFError => e
@@ -314,7 +331,6 @@ module IOPromise
           # all pending operations need to be rejected when a failure occurs
           @pending_ops.each do |op|
             op.reject(ex)
-            op.execute_pool.complete(op)
           end
           @pending_ops = {}
         end

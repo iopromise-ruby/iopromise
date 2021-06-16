@@ -3,12 +3,6 @@
 require 'iopromise/faraday'
 
 RSpec.describe IOPromise::Faraday do
-  around(:each) do |test|
-    ::IOPromise::ExecutorContext.push
-    test.run
-    ::IOPromise::ExecutorContext.pop
-  end
-
   it "returns a pending promise for a get_as_promise request" do
     conn = IOPromise::Faraday.new(
       url: "https://github.com/"

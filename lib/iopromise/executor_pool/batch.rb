@@ -3,8 +3,8 @@
 module IOPromise
   module ExecutorPool
     class Batch < Base
-      def initialize(connection_pool)
-        super(connection_pool)
+      def initialize(*)
+        super
     
         @current_batch = []
       end
@@ -16,7 +16,9 @@ module IOPromise
         end
         
         # every pending operation becomes part of the current batch
-        @current_batch = @pending.dup
+        # we don't include promises with a source set, because that
+        # indicates that they depend on another promise now.
+        @current_batch = @pending.select { |p| p.pending? && p.source.nil? }
       end
     end
   end

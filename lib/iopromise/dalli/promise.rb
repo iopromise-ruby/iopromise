@@ -9,16 +9,19 @@ module IOPromise
 
       def initialize(server = nil, key = nil)
         super()
-    
+
+        # when created from a 'then' call, initialize nothing
+        return if server.nil? || key.nil?
+
         @server = server
         @key = key
         @start_time = nil
-    
-        ::IOPromise::ExecutorContext.current.register(self) unless @server.nil? || @key.nil?
+        
+        ::IOPromise::ExecutorContext.current.register(self)
       end
     
       def wait
-        if @server.nil? || @key.nil?
+        unless defined?(@server)
           super
         else
           ::IOPromise::ExecutorContext.current.wait_for_all_data(end_when_complete: self)
@@ -26,8 +29,12 @@ module IOPromise
       end
     
       def execute_pool
-        return @pool if defined? @pool
-        @pool = DalliExecutorPool.for(@server)
+        return @pool if defined?(@pool)
+        if defined?(@server)
+          @pool = DalliExecutorPool.for(@server)
+        else
+          @pool = nil
+        end
       end
 
       def in_select_loop

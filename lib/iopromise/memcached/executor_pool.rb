@@ -3,6 +3,12 @@
 module IOPromise
   module Memcached
     class MemcacheExecutorPool < ::IOPromise::ExecutorPool::Batch
+      def initialize(*)
+        super
+
+        @monitors = {}
+      end
+
       def next_batch
         super
 
@@ -14,7 +20,6 @@ module IOPromise
           rescue => e
             @keys_to_promises.values.flatten.each do |promise|
               promise.reject(e)
-              complete(promise)
               @current_batch.delete(promise)
             end
 
@@ -23,12 +28,17 @@ module IOPromise
         end
       end
 
-      def execute_continue(ready_readers, ready_writers, ready_exceptions)
+      def execute_continue
         if @current_batch.empty?
           next_batch
         end
 
-        return [[], [], [], nil] if @current_batch.empty?
+        if @current_batch.empty?
+          @monitors.each do |_, monitor|
+            monitor.interests = nil
+          end
+          return
+        end
 
         so_far, readers, writers = memcache_client.continue_get_multi
 
@@ -45,12 +55,23 @@ module IOPromise
             next if promise.fulfilled?
 
             promise.fulfill(value)
-            complete(promise)
             @current_batch.delete(promise)
           end
         end
 
-        [readers, writers, [], nil]
+        @monitors.each do |_, monitor|
+          monitor.interests = nil
+        end
+
+        readers.each do |reader|
+          @monitors[reader] ||= ::IOPromise::ExecutorContext.current.register_observer_io(self, reader, :r)
+          @monitors[reader].add_interest(:r)
+        end
+
+        writers.each do |writer|
+          @monitors[writer] ||= ::IOPromise::ExecutorContext.current.register_observer_io(self, writer, :w)
+          @monitors[writer].add_interest(:w)
+        end
       end
 
       def memcache_client

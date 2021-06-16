@@ -7,12 +7,6 @@ require 'iopromise/view_component'
 require 'action_controller'
 
 RSpec.describe IOPromise::ViewComponent do
-  around(:each) do |test|
-    ::IOPromise::ExecutorContext.push
-    test.run
-    ::IOPromise::ExecutorContext.pop
-  end
-
   class ExampleComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
     attr_promised_data :foo

@@ -17,12 +17,20 @@ module IOPromise
         
         @multi = MultiSocketAction.new(options.reject{|k,_| k==:max_concurrency})
       end
+
+      def iop_handler=(iop_handler)
+        @multi.iop_handler = iop_handler
+      end
+
+      def socket_is_ready(io, readable, writable)
+        @multi.socket_is_ready(io, readable, writable)
+      end
     
-      def execute_continue(ready_readers, ready_writers, ready_exceptions)
+      def execute_continue
         # fill up the curl easy handle as much as possible
         dequeue_many
     
-        @multi.execute_continue(ready_readers, ready_writers, ready_exceptions)
+        @multi.execute_continue
       end
     end
   end

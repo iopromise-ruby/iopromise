@@ -1,12 +1,6 @@
 # frozen_string_literal: true
 
 RSpec.describe IOPromise::ExecutorContext do
-  around(:each) do |test|
-    ::IOPromise::ExecutorContext.push
-    test.run
-    ::IOPromise::ExecutorContext.pop
-  end
-
   class DeferredInAnotherPoolPromise < IOPromise::Deferred::DeferredPromise
     def initialize(pool_key = nil, &block)
       @pool_key = pool_key

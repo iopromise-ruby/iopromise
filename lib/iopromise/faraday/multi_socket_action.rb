@@ -22,30 +22,33 @@ module IOPromise
       CURL_CSELECT_IN  = 0x01
       CURL_CSELECT_OUT = 0x02
       CURL_CSELECT_ERR = 0x04
+
+      attr_accessor :iop_handler
       
       def initialize(options = {})
         super(options)
     
-        @read_fds = {}
-        @write_fds = {}
-        @select_timeout = nil
+        @ios = {}
+        @iop_handler = nil
+        @notified_fds = 0
     
         self.socketfunction = @keep_socketfunction = proc do |handle, sock, what, userp, socketp|
           if what == CURL_POLL_REMOVE
-            @read_fds.delete(sock)
-            @write_fds.delete(sock)
+            io = @ios.delete(sock)
+            iop_handler.monitor_remove(io) unless io.nil?
           else
             # reuse existing if we have it anywhere
-            io = @read_fds[sock] || @write_fds[sock] || IO.for_fd(sock).tap { |io| io.autoclose = false }
+            io = @ios[sock]
+            if io.nil?
+              io = @ios[sock] = IO.for_fd(sock).tap { |io| io.autoclose = false }
+              iop_handler.monitor_add(io)
+            end
             if what == CURL_POLL_INOUT
-              @read_fds[sock] = io
-              @write_fds[sock] = io
+              iop_handler.set_interests(io, :rw)
             elsif what == CURL_POLL_IN
-              @read_fds[sock] = io
-              @write_fds.delete(sock)
+              iop_handler.set_interests(io, :r)
             elsif what == CURL_POLL_OUT
-              @read_fds.delete(sock)
-              @write_fds[sock] = io
+              iop_handler.set_interests(io, :w)
             end
           end
           CURLM_OK
@@ -53,10 +56,11 @@ module IOPromise
     
         self.timerfunction = @keep_timerfunction = proc do |handle, timeout_ms, userp|
           if timeout_ms > 0x7fffffffffffffff # FIXME: wrongly encoded
-            @select_timeout = nil
+            select_timeout = nil
           else
-            @select_timeout = timeout_ms.to_f / 1_000
+            select_timeout = timeout_ms.to_f / 1_000
           end
+          iop_handler.set_timeout(select_timeout)
           CURLM_OK
         end
       end
@@ -68,39 +72,30 @@ module IOPromise
       def run
         # stubbed out, we don't want any of the multi_perform logic
       end
-    
-      def execute_continue(ready_readers, ready_writers, ready_exceptions)
+
+      def socket_is_ready(io, readable, writable)
         running_handles = ::FFI::MemoryPointer.new(:int)
-        
-        flags = Hash.new(0)
+
+        bitmask = 0
+        bitmask |= CURL_CSELECT_IN if readable
+        bitmask |= CURL_CSELECT_OUT if writable
+
+        Ethon::Curl.multi_socket_action(handle, io.fileno, bitmask, running_handles)
+        @notified_fds += 1
+      end
     
-        unless ready_readers.nil?
-          ready_readers.each do |s|
-            flags[s.fileno] |= CURL_CSELECT_IN
-          end
-        end
-        unless ready_writers.nil?
-          ready_writers.each do |s|
-            flags[s.fileno] |= CURL_CSELECT_OUT
-          end
-        end
-        unless ready_exceptions.nil?
-          ready_exceptions.each do |s|
-            flags[s.fileno] |= CURL_CSELECT_ERR
-          end
-        end
-        
-        flags.each do |fd, bitmask|
-          Ethon::Curl.multi_socket_action(handle, fd, bitmask, running_handles)
-        end
+      def execute_continue
+        running_handles = ::FFI::MemoryPointer.new(:int)
     
-        if flags.empty?
+        if @notified_fds == 0
+          # no FDs were readable/writable so we send the timeout fd, which lets
+          # curl perform housekeeping.
           Ethon::Curl.multi_socket_action(handle, CURL_SOCKET_TIMEOUT, 0, running_handles)
+        else
+          @notified_fds = 0
         end
     
         check
-    
-        [@read_fds.values, @write_fds.values, [], @select_timeout]
       end
     end
   end

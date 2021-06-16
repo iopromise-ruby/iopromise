@@ -3,11 +3,6 @@
 require 'iopromise/memcached'
 
 RSpec.describe IOPromise::Memcached do
-  around(:each) do |test|
-    ::IOPromise::ExecutorContext.push
-    test.run
-    ::IOPromise::ExecutorContext.pop
-  end
 
   it "returns a pending promise for a get_as_promise request" do
     client = IOPromise::Memcached.new
