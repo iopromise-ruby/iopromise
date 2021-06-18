@@ -4,6 +4,3 @@ IFS=$'\n\t'
 set -vx
 
 bundle install
-
-# bring up a memcached for testing
-docker run -d -p 11211:11211 memcached:alpine
