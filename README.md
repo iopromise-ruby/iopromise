@@ -1,6 +1,23 @@
-# iopromise
+# IOPromise
 
-This **experimental pre-release** gem extends promise.rb promises to support an extremely simple pattern for \"continuing\" execution of all pending promises in an asynchronous non-blocking way.
+IOPromise is a pattern that allows parallel execution of IO-bound requests (data store and RPCs) behind the abstraction of promises, without needing to introduce the complexity of threading. It uses [promise.rb](https://github.com/lgierth/promise.rb) for promises, and [nio4r](https://github.com/socketry/nio4r) to implement the IO loop.
+
+A simple example of this behaviour is using [iopromise-faraday](https://github.com/iopromise-ruby/iopromise-faraday) to perform concurrent HTTP requests:
+```ruby
+require 'iopromise/faraday'
+
+conn = IOPromise::Faraday.new('https://github.com/')
+
+promises = (1..3).map do
+  conn.get('/status')
+end
+
+Promise.all(promises).then do |responses|
+  responses.each_with_index do |response, i|
+    puts "#{i}: #{response.body.strip} #{response.headers["x-github-request-id"]}"
+  end
+end.sync
+```
 
 ## Installation
 
@@ -20,7 +37,9 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+IOPromise itself is a base library that makes it easy to wrap other IO-based workloads inside a promise-based API that back to an event loop. To use IOPromise, look at the following gems:
+
+ * [iopromise-faraday](https://github.com/iopromise-ruby/iopromise-faraday) supports [faraday](https://github.com/lostisland/faraday) HTTP requests, backed by libcurl/ethon/typhoeus.
 
 ## Development
 
