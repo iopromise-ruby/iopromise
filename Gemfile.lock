@@ -8,7 +8,7 @@ GIT
 PATH
   remote: .
   specs:
-    iopromise (0.1.1)
+    iopromise (0.1.2)
       nio4r
       promise.rb (~> 0.7.4)
 
