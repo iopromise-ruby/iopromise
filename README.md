@@ -40,6 +40,7 @@ Or install it yourself as:
 IOPromise itself is a base library that makes it easy to wrap other IO-based workloads inside a promise-based API that back to an event loop. To use IOPromise, look at the following gems:
 
  * [iopromise-faraday](https://github.com/iopromise-ruby/iopromise-faraday) supports [faraday](https://github.com/lostisland/faraday) HTTP requests, backed by libcurl/ethon/typhoeus.
+ * [iopromise-dalli](https://github.com/iopromise-ruby/iopromise-dalli) supports [dalli](https://github.com/petergoldstein/dalli) memcached requests.
 
 ## Development
 
