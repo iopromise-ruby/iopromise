@@ -4,6 +4,7 @@ require "promise"
 
 require_relative "iopromise/version"
 
+require_relative "iopromise/cancel_context"
 require_relative "iopromise/executor_context"
 require_relative "iopromise/executor_pool/base"
 require_relative "iopromise/executor_pool/batch"
@@ -54,7 +55,7 @@ module IOPromise
     # propegation once this promise has been cancelled.
     def cancel
       return unless pending?
-
+      
       @cancelled = true
       @observers = []
     end

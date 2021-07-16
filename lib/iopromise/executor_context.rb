@@ -29,6 +29,7 @@ module IOPromise
 
     def register(promise)
       @pending_registrations << promise
+      IOPromise::CancelContext.current&.subscribe(promise)
     end
 
     def wait_for_all_data(end_when_complete: nil)
