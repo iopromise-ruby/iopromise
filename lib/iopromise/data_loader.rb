@@ -4,8 +4,8 @@ module IOPromise
   module DataLoader
     module ClassMethods
       def attr_promised_data(*args)
-        @promised_data ||= []
-        @promised_data.concat(args)
+        @promised_data_keys ||= []
+        @promised_data_keys.concat(args)
 
         args.each do |arg|
           self.class_eval("def #{arg};@#{arg}.sync;end")
@@ -13,7 +13,7 @@ module IOPromise
       end
   
       def promised_data_keys
-        @promised_data ||= []
+        @promised_data_keys ||= []
       end
     end
 
@@ -47,7 +47,7 @@ module IOPromise
     end
 
     def data_as_promise
-      @data_promise ||= Promise.all(data_promises)
+      @data_as_promise ||= Promise.all(data_promises)
     end
 
     def sync
