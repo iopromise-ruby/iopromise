@@ -49,5 +49,26 @@ module IOPromise
       notify_completion(reason: reason)
       super(reason)
     end
+
+    # makes this promise inert, ensuring that promise chains do not continue
+    # propegation once this promise has been cancelled.
+    def cancel
+      return unless pending?
+
+      @cancelled = true
+      @observers = []
+    end
+
+    def notify_fulfillment
+      super unless defined?(@cancelled)
+    end
+
+    def notify_rejection
+      super unless defined?(@cancelled)
+    end
+
+    def cancelled?
+      !!defined?(@cancelled)
+    end
   end
 end
