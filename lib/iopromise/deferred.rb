@@ -5,8 +5,8 @@ require_relative 'deferred/promise'
 module IOPromise
   module Deferred
     class << self
-      def new(&block)
-        ::IOPromise::Deferred::DeferredPromise.new(&block)
+      def new(*args, **kwargs, &block)
+        ::IOPromise::Deferred::DeferredPromise.new(*args, **kwargs, &block)
       end
     end
   end

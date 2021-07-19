@@ -59,4 +59,113 @@ RSpec.describe IOPromise::Deferred do
     expect(begin_called).to eq(1)
     expect(finish_called).to eq(1)
   end
+
+  context "with delay" do
+    it "delays execution of a delayed promise" do
+      long_deferred = IOPromise::Deferred.new(timeout: 0.5) { 123 }
+      expect(long_deferred).to be_pending
+
+      deferred = IOPromise::Deferred.new { 123 }
+      expect(long_deferred).to be_pending
+      expect(deferred).to be_pending
+
+      deferred.sync
+
+      expect(long_deferred).to be_pending
+      expect(deferred).to be_fulfilled
+    end
+
+    it "delays execution of concurrent delayed promises with different times" do
+      promises = []
+      promises << IOPromise::Deferred.new { Time.now }
+      promises << IOPromise::Deferred.new(timeout: 0.5) { Time.now }
+      promises << IOPromise::Deferred.new(timeout: 1) { Time.now }
+      last = IOPromise::Deferred.new(timeout: 2) { Time.now } # create this out of order
+      promises << IOPromise::Deferred.new(timeout: 1.5) { Time.now }
+      promises << last # we'll expect it to complete last
+
+      Promise.all(promises).sync
+
+      exec_times = promises.map do |p|
+        expect(p).to be_fulfilled
+        p.value.to_f
+      end
+
+      # these should execute in the expected order
+      expect(exec_times[0]).to be < exec_times[1]
+      expect(exec_times[1]).to be < exec_times[2]
+      expect(exec_times[2]).to be < exec_times[3]
+      expect(exec_times[3]).to be < exec_times[4]
+
+      # the delay should be at least the 0.5s timeouts specified
+      expect(exec_times[1] - exec_times[0]).to be > 0.4
+      expect(exec_times[2] - exec_times[1]).to be > 0.4
+      expect(exec_times[3] - exec_times[2]).to be > 0.4
+      expect(exec_times[4] - exec_times[3]).to be > 0.4
+    end
+
+    it "fully empties the pending promise list in the execution pool" do
+      Promise.all([
+        IOPromise::Deferred.new { Time.now },
+        IOPromise::Deferred.new(timeout: 0.5) { Time.now },
+      ]).sync
+
+      pending = IOPromise::Deferred::DeferredExecutorPool.for(Thread.current).instance_variable_get(:@pending)
+      expect(pending).to be_empty
+    end
+
+    context "with deferred-based retries" do
+      class FlakeyRPC
+        def initialize
+          @attempts = 0
+        end
+  
+        def execute
+          Promise.resolve.then do
+            @attempts = @attempts + 1
+            raise "need to retry this, attempts=#{@attempts}!" if @attempts < 4
+            "all good on attempt=#{@attempts}"
+          end
+        end
+      end
+  
+      def retry_promise_block(times, &block)
+        promise = block.call
+        return promise if times == 0
+  
+        promise.rescue do |ex|
+          IOPromise::Deferred.new(timeout: 0.5) do
+            retry_promise_block(times - 1, &block)
+          end
+        end
+      end
+  
+      it "retries with delays and rejects when it always fails" do
+        flakey = FlakeyRPC.new
+        failing_flake = retry_promise_block(2) do
+          flakey.execute
+        end
+
+        start = Time.now
+        expect { failing_flake.sync }.to raise_exception /need to retry this, attempts=3/
+        duration = Time.now - start
+        expect(duration).to be > 1 # 2 retries
+        expect(duration).to be < 1.5 # but no more
+      end
+  
+      it "retries with delays and fulfills when the last succeeds" do
+        flakey = FlakeyRPC.new
+        success_flake = retry_promise_block(5) do
+          flakey.execute
+        end
+
+        start = Time.now
+        result = success_flake.sync
+        expect(result).to eq('all good on attempt=4')
+        duration = Time.now - start
+        expect(duration).to be > 1.5 # 3 retries
+        expect(duration).to be < 2 # but not more, should stop at first success
+      end
+    end
+  end
 end

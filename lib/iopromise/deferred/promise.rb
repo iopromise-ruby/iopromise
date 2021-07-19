@@ -5,10 +5,14 @@ require_relative 'executor_pool'
 module IOPromise
   module Deferred
     class DeferredPromise < ::IOPromise::Base
-      def initialize(&block)
+      def initialize(timeout: nil, &block)
         super()
     
         @block = block
+        
+        unless timeout.nil?
+          @defer_until = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+        end
     
         ::IOPromise::ExecutorContext.current.register(self) unless @block.nil?
       end
@@ -32,6 +36,15 @@ module IOPromise
         rescue => exception
           reject(exception)
         end
+      end
+
+      def time_until_execution
+        return 0 unless defined?(@defer_until)
+
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        return 0 if now > @defer_until
+
+        @defer_until - now
       end
     end
   end
