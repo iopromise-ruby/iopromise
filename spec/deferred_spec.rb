@@ -62,7 +62,7 @@ RSpec.describe IOPromise::Deferred do
 
   context "with delay" do
     it "delays execution of a delayed promise" do
-      long_deferred = IOPromise::Deferred.new(0.5) { 123 }
+      long_deferred = IOPromise::Deferred.new(timeout: 0.5) { 123 }
       expect(long_deferred).to be_pending
 
       deferred = IOPromise::Deferred.new { 123 }
@@ -78,10 +78,10 @@ RSpec.describe IOPromise::Deferred do
     it "delays execution of concurrent delayed promises with different times" do
       promises = []
       promises << IOPromise::Deferred.new { Time.now }
-      promises << IOPromise::Deferred.new(0.5) { Time.now }
-      promises << IOPromise::Deferred.new(1) { Time.now }
-      promises << IOPromise::Deferred.new(1.5) { Time.now }
-      promises << IOPromise::Deferred.new(2) { Time.now }
+      promises << IOPromise::Deferred.new(timeout: 0.5) { Time.now }
+      promises << IOPromise::Deferred.new(timeout: 1) { Time.now }
+      promises << IOPromise::Deferred.new(timeout: 1.5) { Time.now }
+      promises << IOPromise::Deferred.new(timeout: 2) { Time.now }
 
       Promise.all(promises).sync
 
@@ -99,7 +99,7 @@ RSpec.describe IOPromise::Deferred do
     it "fully empties the pending promise list in the execution pool" do
       Promise.all([
         IOPromise::Deferred.new { Time.now },
-        IOPromise::Deferred.new(0.5) { Time.now },
+        IOPromise::Deferred.new(timeout: 0.5) { Time.now },
       ]).sync
 
       pending = IOPromise::Deferred::DeferredExecutorPool.for(Thread.current).instance_variable_get(:@pending)
@@ -126,7 +126,7 @@ RSpec.describe IOPromise::Deferred do
         return promise if times == 0
   
         promise.rescue do |ex|
-          IOPromise::Deferred.new(0.5) do
+          IOPromise::Deferred.new(timeout: 0.5) do
             retry_promise_block(times - 1, &block)
           end
         end

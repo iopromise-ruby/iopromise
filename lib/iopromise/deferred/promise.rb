@@ -5,7 +5,7 @@ require_relative 'executor_pool'
 module IOPromise
   module Deferred
     class DeferredPromise < ::IOPromise::Base
-      def initialize(timeout = nil, &block)
+      def initialize(timeout: nil, &block)
         super()
     
         @block = block
