@@ -4,6 +4,12 @@ require 'iopromise'
 require 'iopromise/deferred'
 
 RSpec.describe IOPromise::Deferred do
+  around(:each) do |example|
+    IOPromise::CancelContext.with_new_context do
+      example.run
+    end
+  end
+
   it "leaves the promise pending initially" do
     deferred = IOPromise::Deferred.new { 123 }
     
@@ -58,6 +64,25 @@ RSpec.describe IOPromise::Deferred do
 
     expect(begin_called).to eq(1)
     expect(finish_called).to eq(1)
+  end
+
+  it "waiting on a cancelled deferred promise fails rather than blocking" do
+    deferred = IOPromise::Deferred.new { 123 }
+    deferred.cancel
+
+    expect {
+      deferred.wait
+    }.to raise_error(IOPromise::CancelledError)
+  end
+
+  it "cleans up the deferred promise from the pool on cancellation" do
+    deferred = IOPromise::Deferred.new { 123 }
+    deferred.cancel
+
+    expect(deferred).to be_pending
+    expect(deferred).to be_cancelled
+
+    expect(deferred.execute_pool.instance_variable_get('@pending')).to be_empty
   end
 
   context "with delay" do

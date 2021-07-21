@@ -12,6 +12,7 @@ require_relative "iopromise/executor_pool/sequential"
 
 module IOPromise
   class Error < StandardError; end
+  class CancelledError < Error; end
 
   class Base < ::Promise
     def instrument(begin_cb = nil, end_cb = nil)
@@ -42,13 +43,26 @@ module IOPromise
     end
 
     def fulfill(value)
+      return if defined?(@cancelled)
       notify_completion(value: value)
       super(value)
     end
 
     def reject(reason)
+      return if defined?(@cancelled)
       notify_completion(reason: reason)
       super(reason)
+    end
+
+    def wait
+      raise IOPromise::CancelledError if defined?(@cancelled)
+      super
+    end
+
+    # Subclasses are expected to implement 'execute_pool' to return an IOPromise::ExecutorPool
+    # that is responsible for completing the given promise.
+    def execute_pool
+      raise NotImplementedError
     end
 
     # makes this promise inert, ensuring that promise chains do not continue
@@ -58,14 +72,8 @@ module IOPromise
       
       @cancelled = true
       @observers = []
-    end
 
-    def notify_fulfillment
-      super unless defined?(@cancelled)
-    end
-
-    def notify_rejection
-      super unless defined?(@cancelled)
+      execute_pool.promise_cancelled(self)
     end
 
     def cancelled?

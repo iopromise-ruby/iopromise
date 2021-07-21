@@ -1,8 +1,17 @@
 # frozen_string_literal: true
 
 RSpec.describe IOPromise::Base do
+  # Implement the very minimal requirements of an IOPromise::Base subclass
+  class DummyExecutorPool < IOPromise::ExecutorPool::Sequential
+  end
+  class DummyPromise < IOPromise::Base
+    def execute_pool
+      DummyExecutorPool.for(Thread.current)
+    end
+  end
+
   it "fulfills like a normal promise" do
-    b = IOPromise::Base.new
+    b = DummyPromise.new
     chained = b.then { |v| v }
     expect(b).to be_pending
     expect(chained).to be_pending
@@ -19,7 +28,7 @@ RSpec.describe IOPromise::Base do
   end
 
   it "rejects like a normal promise" do
-    b = IOPromise::Base.new
+    b = DummyPromise.new
     chained = b.then { |v| v }
     expect(b).to be_pending
     expect(chained).to be_pending
@@ -37,7 +46,7 @@ RSpec.describe IOPromise::Base do
 
   context "#cancel" do
     it "prevents handlers on fulfill" do
-      b = IOPromise::Base.new
+      b = DummyPromise.new
       chained = b.then { |v| v }
       expect(b).to be_pending
       expect(chained).to be_pending
@@ -49,15 +58,12 @@ RSpec.describe IOPromise::Base do
 
       b.fulfill('test')
 
-      expect(b).to_not be_pending
-      expect(b).to be_fulfilled
-      expect(b.value).to eq('test')
-
+      expect(b).to be_pending
       expect(chained).to be_pending
     end
 
     it "prevents handlers on reject" do
-      b = IOPromise::Base.new
+      b = DummyPromise.new
       chained = b.then { |v| v }
       expect(b).to be_pending
       expect(chained).to be_pending
@@ -69,15 +75,12 @@ RSpec.describe IOPromise::Base do
 
       b.reject('test')
 
-      expect(b).to_not be_pending
-      expect(b).to be_rejected
-      expect(b.reason).to eq('test')
-
+      expect(b).to be_pending
       expect(chained).to be_pending
     end
 
     it "does nothing on completed promises" do
-      b = IOPromise::Base.new
+      b = DummyPromise.new
       b.fulfill('foo')
 
       expect(b).to_not be_pending

@@ -36,6 +36,9 @@ module IOPromise
       def promise_rejected(_reason, item)
         @pending.delete(item)
       end
+      def promise_cancelled(item)
+        @pending.delete(item)
+      end
 
       def begin_executing(item)
         item.beginning
