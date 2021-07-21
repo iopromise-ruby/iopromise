@@ -17,19 +17,28 @@ module IOPromise
           next_batch
         end
 
-        until @current_batch.empty?
-          # we are just running this in the sync cycle, in a blocking way.
-          @current_batch.each do |promise|
+        # we are just running this in the sync cycle, in a blocking way.
+        timeouts = []
+        @current_batch.each do |promise|
+          time_until_execution = promise.time_until_execution
+          if time_until_execution <= 0
             begin_executing(promise)
             promise.run_deferred
+          else
+            timeouts << time_until_execution
           end
-
-          @current_batch = []
-
-          next_batch
         end
 
-        # we always fully complete each cycle
+        if timeouts.empty?
+          @select_timeout = nil
+        else
+          # ensure we get back to this loop not too long after 
+          @select_timeout = timeouts.min
+        end
+
+        # we reset the batch - the promises that are not completed will still be
+        # pending and will be available next time we are called.
+        @current_batch = []
       end
     end
   end
