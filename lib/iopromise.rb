@@ -43,19 +43,19 @@ module IOPromise
     end
 
     def fulfill(value)
-      return if defined?(@cancelled)
+      return if cancelled?
       notify_completion(value: value)
       super(value)
     end
 
     def reject(reason)
-      return if defined?(@cancelled)
+      return if cancelled?
       notify_completion(reason: reason)
       super(reason)
     end
 
     def wait
-      raise IOPromise::CancelledError if defined?(@cancelled)
+      raise IOPromise::CancelledError if cancelled?
       super
     end
 
