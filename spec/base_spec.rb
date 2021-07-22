@@ -79,6 +79,34 @@ RSpec.describe IOPromise::Base do
       expect(chained).to be_pending
     end
 
+    it "prevents successful promise chains after cancel" do
+      b = DummyPromise.new
+      b.cancel
+
+      expect(b).to be_cancelled
+
+      chained = b.then { |v| v }
+
+      b.fulfill('test')
+
+      expect(b).to be_pending
+      expect(chained).to be_pending
+    end
+
+    it "prevents failing promise chains after cancel" do
+      b = DummyPromise.new
+      b.cancel
+
+      expect(b).to be_cancelled
+
+      chained = b.rescue { |v| v }
+
+      b.reject('test')
+
+      expect(b).to be_pending
+      expect(chained).to be_pending
+    end
+
     it "does nothing on completed promises" do
       b = DummyPromise.new
       b.fulfill('foo')
@@ -92,6 +120,20 @@ RSpec.describe IOPromise::Base do
       expect(b).to_not be_pending
       expect(b).to be_fulfilled
       expect(b).to_not be_cancelled
+    end
+
+    it "allows Promise#then to work if already resolved" do
+      b = DummyPromise.new
+      b.fulfill('foo')
+
+      expect(b).to_not be_pending
+      expect(b).to be_fulfilled
+      expect(b).to_not be_cancelled
+
+      b.cancel
+
+      chained = b.then { |v| v }
+      expect(chained.value).to eq('foo')
     end
   end
 end
