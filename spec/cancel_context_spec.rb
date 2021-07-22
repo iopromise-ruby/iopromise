@@ -42,6 +42,7 @@ RSpec.describe IOPromise::CancelContext do
 
       expect(deferred2).to be_pending
       expect(deferred2).to be_cancelled
+      expect(deferred).to_not be_cancelled
     end
 
     expect(deferred).to be_pending
