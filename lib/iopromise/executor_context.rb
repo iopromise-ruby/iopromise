@@ -29,9 +29,14 @@ module IOPromise
 
     def register(promise)
       @pending_registrations << promise
+      IOPromise::CancelContext.current&.subscribe(promise)
     end
 
     def wait_for_all_data(end_when_complete: nil)
+      unless end_when_complete.nil?
+        raise IOPromise::CancelledError if end_when_complete.cancelled?
+      end
+
       loop do
         complete_pending_registrations
 
@@ -84,7 +89,7 @@ module IOPromise
       pending = @pending_registrations
       @pending_registrations = []
       pending.each do |promise|
-        register_now(promise)
+        register_now(promise) unless promise.cancelled?
       end
     end
 
