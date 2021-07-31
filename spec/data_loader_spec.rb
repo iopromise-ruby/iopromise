@@ -81,7 +81,7 @@ RSpec.describe IOPromise::DataLoader do
     example = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :example)
     expect(example.dynamic_no_args).to eq("dynamic without args (ident=example, calls=1)")
     expect(example.dynamic_no_args).to eq("dynamic without args (ident=example, calls=1)")
-    expect(example.dynamic_no_args_promise.sync).to eq("dynamic without args (ident=example, calls=1)")
+    expect(example.async_dynamic_no_args.sync).to eq("dynamic without args (ident=example, calls=1)")
   end
 
   it "doesn't memoise lambda promises across instances" do

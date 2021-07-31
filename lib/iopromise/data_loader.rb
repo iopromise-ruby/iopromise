@@ -15,9 +15,9 @@ module IOPromise
 
         args.each do |arg|
           if build_func.nil?
-            self.class_eval("def #{arg}_promise;@#{arg};end")
+            self.class_eval("def async_#{arg};@#{arg};end")
           else
-            self.define_method("#{arg}_promise") do
+            self.define_method("async_#{arg}") do
               @promised_data_memo ||= {}
               @promised_data_memo[arg] ||= if build_func.arity == 1
                 self.instance_exec(arg, &build_func)
@@ -27,7 +27,7 @@ module IOPromise
             end
           end
 
-          self.class_eval("def #{arg};#{arg}_promise.sync;end")
+          self.class_eval("def #{arg};async_#{arg}.sync;end")
         end
       end
   
@@ -42,7 +42,7 @@ module IOPromise
 
     def data_promises
       self.class.promised_data_keys.flat_map do |k|
-        p = send("#{k}_promise")
+        p = send("async_#{k}")
         case p
         when ::IOPromise::DataLoader
           # greedily, recursively preload all nested data that we know about immediately
