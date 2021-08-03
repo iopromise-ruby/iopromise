@@ -3,32 +3,20 @@
 module IOPromise
   module DataLoader
     module ClassMethods
-      def attr_promised_data(*args)
-        build_func = if args.last&.is_a?(Proc)
-          args.pop
-        else
-          nil
-        end
-
+      def attr_async_data(attr_name, build_func = nil)
         @promised_data_keys ||= []
-        @promised_data_keys.concat(args)
+        @promised_data_keys << attr_name
 
-        args.each do |arg|
-          if build_func.nil?
-            self.class_eval("def async_#{arg};@#{arg};end")
-          else
-            self.define_method("async_#{arg}") do
-              @promised_data_memo ||= {}
-              @promised_data_memo[arg] ||= if build_func.arity == 1
-                self.instance_exec(arg, &build_func)
-              else
-                self.instance_exec(&build_func)
-              end
-            end
+        if build_func.nil?
+          self.class_eval("def async_#{attr_name};@#{attr_name};end")
+        else
+          self.define_method("async_#{attr_name}") do
+            @promised_data_memo ||= {}
+            @promised_data_memo[attr_name] ||= self.instance_exec(&build_func)
           end
-
-          self.class_eval("def #{arg};async_#{arg}.sync;end")
         end
+
+        self.class_eval("def #{attr_name};async_#{attr_name}.sync;end")
       end
   
       def promised_data_keys
@@ -60,7 +48,7 @@ module IOPromise
 
           [resolved]
         else
-          raise TypeError.new("Instance variable #{k.to_s} used with attr_promised_data but was not a promise or a IOPromise::DataLoader.")
+          raise TypeError.new("Instance variable #{k.to_s} used with attr_async_data but was not a promise or a IOPromise::DataLoader.")
         end
       end
     end

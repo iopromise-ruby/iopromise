@@ -8,15 +8,15 @@ RSpec.describe IOPromise::DataLoader do
   class ExampleDataLoader
     include IOPromise::DataLoader
 
-    attr_promised_data :foo
-    attr_promised_data :bar
-    attr_promised_data :dynamic1, :dynamic2, -> (id) do
-      IOPromise::Deferred.new { "dynamic from #{id} (ident=#{@ident})" }
+    attr_async_data :foo
+    attr_async_data :bar
+    attr_async_data :dynamic1, -> do
+      IOPromise::Deferred.new { "dynamic from 1 (ident=#{@ident})" }
     end
-    attr_promised_data :dynamic_no_args, -> do
+    attr_async_data :dynamic2, -> do
       @calls ||= 0
       @calls += 1
-      IOPromise::Deferred.new { "dynamic without args (ident=#{@ident}, calls=#{@calls})" }
+      IOPromise::Deferred.new { "dynamic from 2 (ident=#{@ident}, calls=#{@calls})" }
     end
 
     def initialize(data_source, ident)
@@ -29,7 +29,7 @@ RSpec.describe IOPromise::DataLoader do
   class AnotherDataLoader
     include IOPromise::DataLoader
 
-    attr_promised_data :baz
+    attr_async_data :baz
 
     def initialize(data_source)
       @baz = IOPromise::Deferred.new { data_source[:baz] }
@@ -39,7 +39,7 @@ RSpec.describe IOPromise::DataLoader do
   class BrokenDataLoader
     include IOPromise::DataLoader
 
-    attr_promised_data :broken
+    attr_async_data :broken
 
     def initialize
       @broken = ::Promise.new
@@ -49,7 +49,9 @@ RSpec.describe IOPromise::DataLoader do
 
   class ParentDataLoader
     include IOPromise::DataLoader
-    attr_promised_data :parent_thing, :example_component, :another_component
+    attr_async_data :parent_thing
+    attr_async_data :example_component
+    attr_async_data :another_component
 
     def initialize(data_source)
       @parent_thing = IOPromise::Deferred.new { data_source[:parent_thing] }
@@ -59,7 +61,7 @@ RSpec.describe IOPromise::DataLoader do
   end
 
   it "registers the promised data keys for the class" do
-    expect(ExampleDataLoader.promised_data_keys).to eq([:foo, :bar, :dynamic1, :dynamic2, :dynamic_no_args])
+    expect(ExampleDataLoader.promised_data_keys).to eq([:foo, :bar, :dynamic1, :dynamic2])
     expect(AnotherDataLoader.promised_data_keys).to eq([:baz])
     expect(BrokenDataLoader.promised_data_keys).to eq([:broken])
   end
@@ -72,16 +74,15 @@ RSpec.describe IOPromise::DataLoader do
 
   it "creates attr readers that use the lambda to generate the promise when provided" do
     example = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :example)
-    expect(example.dynamic1).to eq("dynamic from dynamic1 (ident=example)")
-    expect(example.dynamic2).to eq("dynamic from dynamic2 (ident=example)")
-    expect(example.dynamic_no_args).to eq("dynamic without args (ident=example, calls=1)")
+    expect(example.dynamic1).to eq("dynamic from 1 (ident=example)")
+    expect(example.dynamic2).to eq("dynamic from 2 (ident=example, calls=1)")
   end
 
   it "memoises results of lambda promises" do
     example = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :example)
-    expect(example.dynamic_no_args).to eq("dynamic without args (ident=example, calls=1)")
-    expect(example.dynamic_no_args).to eq("dynamic without args (ident=example, calls=1)")
-    expect(example.async_dynamic_no_args.sync).to eq("dynamic without args (ident=example, calls=1)")
+    expect(example.dynamic2).to eq("dynamic from 2 (ident=example, calls=1)")
+    expect(example.dynamic2).to eq("dynamic from 2 (ident=example, calls=1)")
+    expect(example.async_dynamic2.sync).to eq("dynamic from 2 (ident=example, calls=1)")
   end
 
   it "doesn't memoise lambda promises across instances" do
@@ -89,12 +90,10 @@ RSpec.describe IOPromise::DataLoader do
     another = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :another)
     example.sync
     another.sync
-    expect(example.dynamic1).to eq("dynamic from dynamic1 (ident=example)")
-    expect(example.dynamic2).to eq("dynamic from dynamic2 (ident=example)")
-    expect(example.dynamic_no_args).to eq("dynamic without args (ident=example, calls=1)")
-    expect(another.dynamic1).to eq("dynamic from dynamic1 (ident=another)")
-    expect(another.dynamic2).to eq("dynamic from dynamic2 (ident=another)")
-    expect(another.dynamic_no_args).to eq("dynamic without args (ident=another, calls=1)")
+    expect(example.dynamic1).to eq("dynamic from 1 (ident=example)")
+    expect(example.dynamic2).to eq("dynamic from 2 (ident=example, calls=1)")
+    expect(another.dynamic1).to eq("dynamic from 1 (ident=another)")
+    expect(another.dynamic2).to eq("dynamic from 2 (ident=another, calls=1)")
   end
 
   it "creates attr readers that sync and handle failure by raising the reason" do
