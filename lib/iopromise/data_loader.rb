@@ -3,13 +3,20 @@
 module IOPromise
   module DataLoader
     module ClassMethods
-      def attr_promised_data(*args)
+      def attr_async_data(attr_name, build_func = nil)
         @promised_data_keys ||= []
-        @promised_data_keys.concat(args)
+        @promised_data_keys << attr_name
 
-        args.each do |arg|
-          self.class_eval("def #{arg};@#{arg}.sync;end")
+        if build_func.nil?
+          self.class_eval("def async_#{attr_name};@#{attr_name};end")
+        else
+          self.define_method("async_#{attr_name}") do
+            @promised_data_memo ||= {}
+            @promised_data_memo[attr_name] ||= self.instance_exec(&build_func)
+          end
         end
+
+        self.class_eval("def #{attr_name};async_#{attr_name}.sync;end")
       end
   
       def promised_data_keys
@@ -23,7 +30,7 @@ module IOPromise
 
     def data_promises
       self.class.promised_data_keys.flat_map do |k|
-        p = instance_variable_get('@' + k.to_s)
+        p = send("async_#{k}")
         case p
         when ::IOPromise::DataLoader
           # greedily, recursively preload all nested data that we know about immediately
@@ -41,7 +48,7 @@ module IOPromise
 
           [resolved]
         else
-          raise TypeError.new("Instance variable #{k.to_s} used with attr_promised_data but was not a promise or a IOPromise::DataLoader.")
+          raise TypeError.new("Instance variable #{k.to_s} used with attr_async_data but was not a promise or a IOPromise::DataLoader.")
         end
       end
     end

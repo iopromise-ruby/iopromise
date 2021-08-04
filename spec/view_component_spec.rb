@@ -9,8 +9,8 @@ require 'action_controller'
 RSpec.describe IOPromise::ViewComponent do
   class ExampleComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_promised_data :foo
-    attr_promised_data :bar
+    attr_async_data :foo
+    attr_async_data :bar
 
     def initialize(data_source)
       @foo = IOPromise::Deferred.new { data_source[:foo] }
@@ -24,7 +24,7 @@ RSpec.describe IOPromise::ViewComponent do
 
   class AnotherComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_promised_data :baz
+    attr_async_data :baz
 
     def initialize(data_source)
       @baz = IOPromise::Deferred.new { data_source[:baz] }
@@ -33,7 +33,7 @@ RSpec.describe IOPromise::ViewComponent do
 
   class BrokenComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_promised_data :broken
+    attr_async_data :broken
 
     def initialize
       @broken = ::Promise.new
@@ -43,7 +43,9 @@ RSpec.describe IOPromise::ViewComponent do
 
   class ParentComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_promised_data :parent_thing, :example_component, :another_component
+    attr_async_data :parent_thing
+    attr_async_data :example_component
+    attr_async_data :another_component
 
     def initialize(data_source)
       @parent_thing = IOPromise::Deferred.new { data_source[:parent_thing] }
