@@ -3,7 +3,7 @@
 module IOPromise
   module DataLoader
     module ClassMethods
-      def attr_async_data(attr_name, build_func = nil)
+      def attr_async(attr_name, build_func = nil)
         @promised_data_keys ||= []
         @promised_data_keys << attr_name
 
@@ -48,7 +48,7 @@ module IOPromise
 
           [resolved]
         else
-          raise TypeError.new("Instance variable #{k.to_s} used with attr_async_data but was not a promise or a IOPromise::DataLoader.")
+          raise TypeError.new("Instance variable #{k.to_s} used with attr_async but was not a promise or a IOPromise::DataLoader.")
         end
       end
     end
