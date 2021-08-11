@@ -123,10 +123,10 @@ RSpec.describe IOPromise::Deferred do
       expect(exec_times[3]).to be < exec_times[4]
 
       # the delay should be at least the 0.5s timeouts specified
-      expect(exec_times[1] - exec_times[0]).to be > 0.4
-      expect(exec_times[2] - exec_times[1]).to be > 0.4
-      expect(exec_times[3] - exec_times[2]).to be > 0.4
-      expect(exec_times[4] - exec_times[3]).to be > 0.4
+      expect(exec_times[0]).to_not be_within(0.4).of(exec_times[1])
+      expect(exec_times[1]).to_not be_within(0.4).of(exec_times[2])
+      expect(exec_times[2]).to_not be_within(0.4).of(exec_times[3])
+      expect(exec_times[3]).to_not be_within(0.4).of(exec_times[4])
     end
 
     it "fully empties the pending promise list in the execution pool" do
