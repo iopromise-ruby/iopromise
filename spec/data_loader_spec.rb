@@ -61,9 +61,9 @@ RSpec.describe IOPromise::DataLoader do
   end
 
   it "registers the promised data keys for the class" do
-    expect(ExampleDataLoader.promised_data_keys).to eq([:foo, :bar, :dynamic1, :dynamic2])
-    expect(AnotherDataLoader.promised_data_keys).to eq([:baz])
-    expect(BrokenDataLoader.promised_data_keys).to eq([:broken])
+    expect(ExampleDataLoader.attr_async_names).to eq([:foo, :bar, :dynamic1, :dynamic2])
+    expect(AnotherDataLoader.attr_async_names).to eq([:baz])
+    expect(BrokenDataLoader.attr_async_names).to eq([:broken])
   end
 
   it "creates attr readers that sync and handle success by returning a value" do
@@ -101,14 +101,14 @@ RSpec.describe IOPromise::DataLoader do
     expect { broken.broken }.to raise_exception('rejection reason')
   end
 
-  it "provides a data_as_promise which syncs all promises, including chained ones" do
+  it "provides a async_attributes which syncs all promises, including chained ones" do
     data_source = {}
     parent = ParentDataLoader.new(data_source)
     example = parent.instance_variable_get('@example_component')
     another = parent.instance_variable_get('@another_component')
 
     # get our promise data source
-    ds_promise = parent.data_as_promise
+    ds_promise = parent.async_attributes
     expect(parent.instance_variable_get('@parent_thing')).to be_pending
     expect(example.instance_variable_get('@foo')).to be_pending
     expect(example.instance_variable_get('@bar')).to be_pending
