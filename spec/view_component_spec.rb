@@ -9,8 +9,8 @@ require 'action_controller'
 RSpec.describe IOPromise::ViewComponent do
   class ExampleComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_async_data :foo
-    attr_async_data :bar
+    attr_async :foo
+    attr_async :bar
 
     def initialize(data_source)
       @foo = IOPromise::Deferred.new { data_source[:foo] }
@@ -24,7 +24,7 @@ RSpec.describe IOPromise::ViewComponent do
 
   class AnotherComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_async_data :baz
+    attr_async :baz
 
     def initialize(data_source)
       @baz = IOPromise::Deferred.new { data_source[:baz] }
@@ -33,7 +33,7 @@ RSpec.describe IOPromise::ViewComponent do
 
   class BrokenComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_async_data :broken
+    attr_async :broken
 
     def initialize
       @broken = ::Promise.new
@@ -43,9 +43,9 @@ RSpec.describe IOPromise::ViewComponent do
 
   class ParentComponent < ViewComponent::Base
     include IOPromise::ViewComponent::DataLoader
-    attr_async_data :parent_thing
-    attr_async_data :example_component
-    attr_async_data :another_component
+    attr_async :parent_thing
+    attr_async :example_component
+    attr_async :another_component
 
     def initialize(data_source)
       @parent_thing = IOPromise::Deferred.new { data_source[:parent_thing] }
@@ -55,9 +55,9 @@ RSpec.describe IOPromise::ViewComponent do
   end
 
   it "registers the promised data keys for the class" do
-    expect(ExampleComponent.promised_data_keys).to eq([:foo, :bar])
-    expect(AnotherComponent.promised_data_keys).to eq([:baz])
-    expect(BrokenComponent.promised_data_keys).to eq([:broken])
+    expect(ExampleComponent.attr_async_names).to eq([:foo, :bar])
+    expect(AnotherComponent.attr_async_names).to eq([:baz])
+    expect(BrokenComponent.attr_async_names).to eq([:broken])
   end
 
   it "creates attr readers that sync and handle success by returning a value" do
@@ -71,14 +71,14 @@ RSpec.describe IOPromise::ViewComponent do
     expect { broken.broken }.to raise_exception('rejection reason')
   end
 
-  it "provides a data_as_promise which syncs all promises, including chained ones" do
+  it "provides a async_attributes which syncs all promises, including chained ones" do
     data_source = {}
     parent = ParentComponent.new(data_source)
     example = parent.instance_variable_get('@example_component')
     another = parent.instance_variable_get('@another_component')
 
     # get our promise data source
-    ds_promise = parent.data_as_promise
+    ds_promise = parent.async_attributes
     expect(parent.instance_variable_get('@parent_thing')).to be_pending
     expect(example.instance_variable_get('@foo')).to be_pending
     expect(example.instance_variable_get('@bar')).to be_pending
@@ -104,9 +104,9 @@ RSpec.describe IOPromise::ViewComponent do
     expect(another.baz).to eq(987)
   end
 
-  it "ensures that data_as_promise is synced before render" do
+  it "ensures that async_attributes is synced before render" do
     example = ExampleComponent.new({ :foo => 123, :bar => 456 })
-    ds = example.data_as_promise
+    ds = example.async_attributes
 
     expect(ds).to be_pending
 
