@@ -87,7 +87,7 @@ RSpec.describe IOPromise::Deferred do
 
   context "with delay" do
     it "delays execution of a delayed promise" do
-      long_deferred = IOPromise::Deferred.new(timeout: 0.5) { 123 }
+      long_deferred = IOPromise::Deferred.new(delay: 0.5) { 123 }
       expect(long_deferred).to be_pending
 
       deferred = IOPromise::Deferred.new { 123 }
@@ -103,10 +103,10 @@ RSpec.describe IOPromise::Deferred do
     it "delays execution of concurrent delayed promises with different times" do
       promises = []
       promises << IOPromise::Deferred.new { Time.now }
-      promises << IOPromise::Deferred.new(timeout: 0.5) { Time.now }
-      promises << IOPromise::Deferred.new(timeout: 1) { Time.now }
-      last = IOPromise::Deferred.new(timeout: 2) { Time.now } # create this out of order
-      promises << IOPromise::Deferred.new(timeout: 1.5) { Time.now }
+      promises << IOPromise::Deferred.new(delay: 0.5) { Time.now }
+      promises << IOPromise::Deferred.new(delay: 1) { Time.now }
+      last = IOPromise::Deferred.new(delay: 2) { Time.now } # create this out of order
+      promises << IOPromise::Deferred.new(delay: 1.5) { Time.now }
       promises << last # we'll expect it to complete last
 
       Promise.all(promises).sync
@@ -123,16 +123,16 @@ RSpec.describe IOPromise::Deferred do
       expect(exec_times[3]).to be < exec_times[4]
 
       # the delay should be at least the 0.5s timeouts specified
-      expect(exec_times[1] - exec_times[0]).to be > 0.4
-      expect(exec_times[2] - exec_times[1]).to be > 0.4
-      expect(exec_times[3] - exec_times[2]).to be > 0.4
-      expect(exec_times[4] - exec_times[3]).to be > 0.4
+      expect(exec_times[0]).to_not be_within(0.4).of(exec_times[1])
+      expect(exec_times[1]).to_not be_within(0.4).of(exec_times[2])
+      expect(exec_times[2]).to_not be_within(0.4).of(exec_times[3])
+      expect(exec_times[3]).to_not be_within(0.4).of(exec_times[4])
     end
 
     it "fully empties the pending promise list in the execution pool" do
       Promise.all([
         IOPromise::Deferred.new { Time.now },
-        IOPromise::Deferred.new(timeout: 0.5) { Time.now },
+        IOPromise::Deferred.new(delay: 0.5) { Time.now },
       ]).sync
 
       pending = IOPromise::Deferred::DeferredExecutorPool.for(Thread.current).instance_variable_get(:@pending)
@@ -159,7 +159,7 @@ RSpec.describe IOPromise::Deferred do
         return promise if times == 0
   
         promise.rescue do |ex|
-          IOPromise::Deferred.new(timeout: 0.5) do
+          IOPromise::Deferred.new(delay: 0.5) do
             retry_promise_block(times - 1, &block)
           end
         end
