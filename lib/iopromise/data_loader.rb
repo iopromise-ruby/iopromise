@@ -4,8 +4,7 @@ module IOPromise
   module DataLoader
     module ClassMethods
       def attr_async(attr_name, build_func = nil)
-        @attr_async_names ||= []
-        @attr_async_names << attr_name
+        self.attr_async_names << attr_name
 
         if build_func.nil?
           self.class_eval("def async_#{attr_name};@#{attr_name};end")
