@@ -10,10 +10,21 @@ RSpec.describe IOPromise::DataLoader do
 
     attr_async :foo
     attr_async :bar
+    attr_async :baz, -> do
+      "non-promise return"
+    end
+    attr_async :dependent1, after: :dynamic1, then: -> do
+      "dependent1 was resolved with pending=#{async_dynamic1.pending?}"
+    end
+    attr_async :dependent2, after: [:foo, :dynamic2], then: -> do
+      "dependent2 was resolved with pending1=#{async_foo.pending?} pending2=#{async_dynamic2.pending?}"
+    end
     attr_async :dynamic1, -> do
+      @dynamic1_was_run = true
       IOPromise::Deferred.new { "dynamic from 1 (ident=#{@ident})" }
     end
     attr_async :dynamic2, -> do
+      @dynamic2_was_run = true
       @calls ||= 0
       @calls += 1
       IOPromise::Deferred.new { "dynamic from 2 (ident=#{@ident}, calls=#{@calls})" }
@@ -61,7 +72,7 @@ RSpec.describe IOPromise::DataLoader do
   end
 
   it "registers the promised data keys for the class" do
-    expect(ExampleDataLoader.attr_async_names).to eq([:foo, :bar, :dynamic1, :dynamic2])
+    expect(ExampleDataLoader.attr_async_names).to eq([:foo, :bar, :baz, :dependent1, :dependent2, :dynamic1, :dynamic2])
     expect(AnotherDataLoader.attr_async_names).to eq([:baz])
     expect(BrokenDataLoader.attr_async_names).to eq([:broken])
   end
@@ -132,5 +143,28 @@ RSpec.describe IOPromise::DataLoader do
     expect(example.foo).to eq(123)
     expect(example.bar).to eq(456)
     expect(another.baz).to eq(987)
+  end
+
+  it "supports non-promise return values from lambda" do
+    example = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :example)
+    expect(example.async_baz.sync).to eq("non-promise return")
+  end
+
+  it "supports attributes indicating they should execute after another attribute" do
+    example = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :example)
+    expect(example.async_dependent1.sync).to eq("dependent1 was resolved with pending=false")
+    expect(example.async_dependent2).to be_pending
+    expect(example.async_foo).to_not be_pending
+    expect(example.async_dynamic1).to_not be_pending
+    expect(example.async_dynamic2).to be_pending
+  end
+
+  it "supports attributes indicating they should execute after multiple attributes" do
+    example = ExampleDataLoader.new({ :foo => 123, :bar => 456 }, :example)
+    expect(example.async_dependent2.sync).to eq("dependent2 was resolved with pending1=false pending2=false")
+    expect(example.async_dependent1).to be_pending
+    expect(example.async_foo).to_not be_pending
+    expect(example.async_dynamic1).to be_pending
+    expect(example.async_dynamic2).to_not be_pending
   end
 end

@@ -3,15 +3,36 @@
 module IOPromise
   module DataLoader
     module ClassMethods
-      def attr_async(attr_name, build_func = nil)
+      def attr_async(attr_name, build_func_or_options = nil)
         self.attr_async_names << attr_name
 
-        if build_func.nil?
+        if build_func_or_options.nil?
           self.class_eval("def async_#{attr_name};@#{attr_name};end")
         else
+          if build_func_or_options.is_a?(Hash)
+            # attr_async :something, after: [:foo, :bar], then: -> { ... }
+            build_func = build_func_or_options[:then]
+            after = build_func_or_options[:after]
+          else
+            # attr_async :something, -> { ... }
+            build_func = build_func_or_options
+            after = nil
+          end
+
           self.define_method("async_#{attr_name}") do
             @attr_async_memo ||= {}
-            @attr_async_memo[attr_name] ||= self.instance_exec(&build_func)
+            @attr_async_memo[attr_name] ||= begin
+              after_promise = if after.nil?
+                Promise.resolve # immediate, nothing to wait on
+              else
+                dependencies = Array(after).map { |dep_attr_name| send("async_#{dep_attr_name}") }
+                Promise.all(dependencies)
+              end
+
+              after_promise.then do # ensures this is always wrapped in a promise, and errors are captured
+                self.instance_exec(&build_func)
+              end
+            end
           end
         end
 
